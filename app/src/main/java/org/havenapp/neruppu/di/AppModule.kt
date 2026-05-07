@@ -31,7 +31,9 @@ object AppModule {
             context,
             NeruppuDatabase::class.java,
             "neruppu_db"
-        ).build()
+        )
+        .fallbackToDestructiveMigration()
+        .build()
     }
 
     @Provides

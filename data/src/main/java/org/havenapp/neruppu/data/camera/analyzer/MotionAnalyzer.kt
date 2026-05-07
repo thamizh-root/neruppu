@@ -1,11 +1,13 @@
 package org.havenapp.neruppu.data.camera.analyzer
 
+import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import kotlin.math.abs
 
 class MotionAnalyzer(
     private val onMotionDetected: (Double) -> Unit,
+    private val onMotionGrid: (FloatArray) -> Unit = {}
 ) : ImageAnalysis.Analyzer {
 
     private var referenceBuffer: ByteArray? = null
@@ -13,16 +15,27 @@ class MotionAnalyzer(
     private var lastReferenceUpdateTime = 0L
     
     // Haven-grade tuning
-    private val referenceUpdateIntervalMs = 500L // Compare against 0.5s ago to catch slow movement
-    private val pixelDiffThreshold = 15 // Lowered for high sensitivity
-    private val samplingStep = 4 // Higher resolution sampling (check 1 in 16 pixels)
+    private val referenceUpdateIntervalMs = 500L
+    private val pixelDiffThreshold = 15
+    private val samplingStep = 4
+
+    // Visualization grid (e.g., 20x15)
+    private val gridCols = 20
+    private val gridRows = 15
+    private val motionGrid = FloatArray(gridCols * gridRows)
 
     override fun analyze(image: ImageProxy) {
+        val now = System.currentTimeMillis()
+        
+        // Log every 5 seconds to avoid spamming while verifying background behavior
+        if (now % 5000 < 100) {
+            Log.d("MotionAnalyzer", "Analyzing frame: ${image.width}x${image.height} [Timestamp: $now]")
+        }
+
         val plane = image.planes[0]
         val buffer = plane.buffer
         val width = image.width
         val height = image.height
-        val now = System.currentTimeMillis()
         
         val size = buffer.remaining()
         if (bufferReuse == null || (bufferReuse!!.size != size)) {
@@ -31,7 +44,6 @@ class MotionAnalyzer(
         val currentData = bufferReuse!!
         buffer[currentData]
         
-        // 1. Initial setup of reference buffer
         if (referenceBuffer == null || (referenceBuffer!!.size != currentData.size)) {
             referenceBuffer = ByteArray(currentData.size)
             System.arraycopy(currentData, 0, referenceBuffer!!, 0, currentData.size)
@@ -40,7 +52,9 @@ class MotionAnalyzer(
             return
         }
 
-        // 2. Calculate motion relative to the LONG-TERM reference
+        // Reset grid
+        motionGrid.fill(0f)
+
         val motionLevel = calculateMotion(
             currentData, 
             referenceBuffer!!, 
@@ -50,15 +64,12 @@ class MotionAnalyzer(
             plane.pixelStride
         )
         onMotionDetected(motionLevel)
+        onMotionGrid(motionGrid.copyOf())
 
-        // 3. Update reference buffer periodically
-        // If 500ms passed, we update the reference to adapt to lighting changes
-        // But we only update if there's no major motion, to keep the background "clean"
         if (now - lastReferenceUpdateTime > referenceUpdateIntervalMs) {
-            if (motionLevel < 5.0) { // Only update baseline if scene is relatively stable
+            if (motionLevel < 5.0) {
                 System.arraycopy(currentData, 0, referenceBuffer!!, 0, currentData.size)
                 lastReferenceUpdateTime = now
-                // Log.d("MotionAnalyzer", "Reference frame updated (Baseline refreshed)")
             }
         }
         
@@ -76,6 +87,9 @@ class MotionAnalyzer(
         var changedPixels = 0
         var totalSampled = 0
         
+        val cellWidth = width / gridCols
+        val cellHeight = height / gridRows
+
         for (y in 0 until height step samplingStep) {
             for (x in 0 until width step samplingStep) {
                 val index = y * rowStride + x * pixelStride
@@ -84,9 +98,22 @@ class MotionAnalyzer(
                     
                     if (diff > pixelDiffThreshold) {
                         changedPixels++
+                        
+                        // Update grid
+                        val gx = (x / cellWidth).coerceAtMost(gridCols - 1)
+                        val gy = (y / cellHeight).coerceAtMost(gridRows - 1)
+                        motionGrid[gy * gridCols + gx] += 1f
                     }
                     totalSampled++
                 }
+            }
+        }
+        
+        // Normalize grid (0.0 to 1.0)
+        val maxPixelsPerCell = (cellWidth * cellHeight) / (samplingStep * samplingStep)
+        if (maxPixelsPerCell > 0) {
+            for (i in motionGrid.indices) {
+                motionGrid[i] = (motionGrid[i] / maxPixelsPerCell).coerceIn(0f, 1f)
             }
         }
         

@@ -12,7 +12,8 @@ data class EventEntity(
     val timestamp: Instant,
     val sensorType: SensorType,
     val description: String,
-    val mediaUri: String?
+    val mediaUri: String?,
+    val audioUri: String? = null
 )
 
 fun EventEntity.toDomain(): Event = Event(
@@ -20,7 +21,8 @@ fun EventEntity.toDomain(): Event = Event(
     timestamp = timestamp,
     sensorType = sensorType,
     description = description,
-    mediaUri = mediaUri
+    mediaUri = mediaUri,
+    audioUri = audioUri
 )
 
 fun Event.toEntity(): EventEntity = EventEntity(
@@ -28,5 +30,6 @@ fun Event.toEntity(): EventEntity = EventEntity(
     timestamp = timestamp,
     sensorType = sensorType,
     description = description,
-    mediaUri = mediaUri
+    mediaUri = mediaUri,
+    audioUri = audioUri
 )

@@ -3,32 +3,35 @@ package org.havenapp.neruppu.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.os.Process
 import android.util.Log
+import androidx.camera.core.Preview
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.*
+import org.havenapp.neruppu.data.audio.AudioRecorder
+import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.data.sensors.AccelerometerDriver
+import org.havenapp.neruppu.data.sensors.LightSensorDriver
 import org.havenapp.neruppu.data.sensors.MicrophoneDriver
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import javax.inject.Inject
-
-import org.havenapp.neruppu.data.sensors.LightSensorDriver
-import org.havenapp.neruppu.data.camera.CameraManager
-import org.havenapp.neruppu.data.audio.AudioRecorder
-
-import android.os.Binder
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import androidx.camera.core.Preview
 
 @AndroidEntryPoint
 class MonitoringService : LifecycleService() {
@@ -39,7 +42,11 @@ class MonitoringService : LifecycleService() {
     @Inject
     lateinit var cameraManager: CameraManager
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var sensorsJob: Job? = null
+    private var heartbeatJob: Job? = null
+    
     private lateinit var accelerometerDriver: AccelerometerDriver
     private lateinit var microphoneDriver: MicrophoneDriver
     private lateinit var lightSensorDriver: LightSensorDriver
@@ -47,6 +54,9 @@ class MonitoringService : LifecycleService() {
 
     private val _motionLevel = MutableStateFlow(0.0)
     val motionLevel: StateFlow<Double> = _motionLevel
+
+    private val _motionGrid = MutableStateFlow(FloatArray(0))
+    val motionGrid: StateFlow<FloatArray> = _motionGrid
 
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel
@@ -60,6 +70,19 @@ class MonitoringService : LifecycleService() {
 
     private val binder = LocalBinder()
 
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        when (key) {
+            "motion_sensitivity", "use_front_camera" -> {
+                Log.d("MonitoringService", "Prefs changed ($key), re-binding camera...")
+                startMonitoring() // Re-bind with new settings
+            }
+            "audio_threshold" -> {
+                Log.d("MonitoringService", "Prefs changed ($key), updating audio threshold...")
+                startMicrophoneMonitoring()
+            }
+        }
+    }
+
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
         return binder
@@ -72,37 +95,92 @@ class MonitoringService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("MonitoringService", "onCreate")
+        Log.d("MonitoringService", "onCreate [PID: ${Process.myPid()}]")
+        
+        lifecycle.addObserver(object : LifecycleEventObserver {
+            override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+                Log.d("MonitoringService", "Lifecycle event: $event")
+            }
+        })
+
+        createNotificationChannel()
+
+        // 1. Immediately claim foreground status to secure sensor access
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or 
+                       ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            startForeground(NOTIFICATION_ID, createNotification(), type)
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
+
         accelerometerDriver = AccelerometerDriver(this)
         microphoneDriver = MicrophoneDriver()
         lightSensorDriver = LightSensorDriver(this)
         audioRecorder = AudioRecorder(this)
-        createNotificationChannel()
         
-        // Always start monitoring on create for this app
-        startMonitoring()
+        getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(prefsListener)
+
+        acquireWakeLock()
+        startHeartbeat()
+        // Sensors will be started based on isMonitoring or UI visibility
+        startMonitoringIfNeeded()
     }
+
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = serviceScope.launch {
+            while (isActive) {
+                Log.d("MonitoringService", "HEARTBEAT - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}, PID: ${Process.myPid()}")
+                delay(10000)
+            }
+        }
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Neruppu:MonitoringWakeLock")
+        wakeLock?.acquire()
+        Log.d("MonitoringService", "WakeLock acquired")
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+            Log.d("MonitoringService", "WakeLock released")
+        }
+    }
+
+    private fun startMonitoringIfNeeded() {
+        // Only start sensors if we are monitoring or if someone is listening (e.g. Dashboard)
+        if (_isMonitoring.value || _uiActive.value) {
+            startMonitoring()
+        } else {
+            stopMonitoring()
+        }
+    }
+
+    private val _uiActive = MutableStateFlow(false)
+    fun setUiActive(active: Boolean) {
+        _uiActive.value = active
+        startMonitoringIfNeeded()
+    }
+
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Log.d("MonitoringService", "onStartCommand: action=${intent?.action}")
         
         when (intent?.action) {
+            ACTION_STOP_SERVICE -> {
+                Log.i("MonitoringService", "Stopping service via notification action")
+                stopSelf()
+            }
             "TRIGGER_MOTION_EVENT" -> {
                 val level = intent.getDoubleExtra("motion_level", 0.0)
-                handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
-            }
-            "RECLAIM_CAMERA" -> {
-                // No-op now as service always owns it, but kept for compatibility
-                Log.d("MonitoringService", "Reclaim camera requested (No-op, Service already owns it)")
-            }
-            else -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or 
-                               ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-                    startForeground(NOTIFICATION_ID, createNotification(), type)
-                } else {
-                    startForeground(NOTIFICATION_ID, createNotification())
+                serviceScope.launch {
+                    handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
                 }
             }
         }
@@ -121,124 +199,135 @@ class MonitoringService : LifecycleService() {
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
         }
+        startMonitoringIfNeeded()
     }
 
+    private fun stopMonitoring() {
+        Log.d("MonitoringService", "Stopping Sensors...")
+        cameraManager.unbind()
+        microphoneJob?.cancel()
+        microphoneJob = null
+        // Also stop other sensor collectors if they are heavy
+        // For now, these flows will just be collected if active
+    }
+
+
     private fun startMonitoring() {
-        Log.d("MonitoringService", "Initializing Camera and Sensors...")
+        Log.d("MonitoringService", "startMonitoring() called - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}")
         
         val useFront = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .getBoolean("use_front_camera", false)
         val sensitivity = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .getFloat("motion_sensitivity", 15f)
 
-        // Camera Motion Monitoring - ALWAYS ON (Service owns it)
+        // Camera Motion Monitoring
         cameraManager.bindCamera(
             lifecycleOwner = this,
             useFrontCamera = useFront,
+            surfaceProvider = if (_uiActive.value) cameraManager.currentSurfaceProvider else null,
             onMotionDetected = { level ->
                 _motionLevel.value = level
                 if (_isMonitoring.value && level > sensitivity.toDouble()) {
                     Log.d("MonitoringService", "THRESHOLD EXCEEDED: $level")
-                    handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
+                    serviceScope.launch {
+                        handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
+                    }
                 }
+            },
+            onMotionGrid = { grid ->
+                _motionGrid.value = grid
             }
         )
 
-        accelerometerDriver.observeMotion()
-            .onEach { magnitude ->
-                if (_isMonitoring.value) {
-                    Log.d("MonitoringService", "Motion event received")
-                    handleEvent(SensorType.ACCELEROMETER, "Physical motion detected: Magnitude $magnitude")
-                }
-            }.launchIn(serviceScope)
+        if (sensorsJob?.isActive == true) {
+            Log.d("MonitoringService", "Sensors already running. Skipping re-initialization.")
+            return
+        }
 
-        startMicrophoneMonitoring()
-
-        lightSensorDriver.observeLightChanges()
-            .onEach { lux ->
-                if (_isMonitoring.value) {
-                    Log.d("MonitoringService", "Light event received")
-                    handleEvent(SensorType.LIGHT, "Light change detected: $lux lux")
+        sensorsJob = serviceScope.launch {
+            Log.d("MonitoringService", "Launching sensor flows...")
+            
+            val accelerometerFlow = accelerometerDriver.observeMotion()
+                .conflate()
+                .onEach { magnitude ->
+                    if (_isMonitoring.value) {
+                        Log.d("MonitoringService", "Motion event received")
+                        serviceScope.launch {
+                            handleEvent(SensorType.ACCELEROMETER, "Physical motion detected: Magnitude $magnitude")
+                        }
+                    }
                 }
-            }.launchIn(serviceScope)
+
+            val lightFlow = lightSensorDriver.observeLightChanges()
+                .conflate()
+                .onEach { lux ->
+                    if (_isMonitoring.value) {
+                        Log.d("MonitoringService", "Light event received")
+                        serviceScope.launch {
+                            handleEvent(SensorType.LIGHT, "Light change detected: $lux lux")
+                        }
+                    }
+                }
+
+            launch { accelerometerFlow.collect() }
+            launch { lightFlow.collect() }
+            
+            startMicrophoneMonitoring()
+        }
     }
 
     private var audioBaseline = 0f
-    private val baselineAlpha = 0.05f // EMA factor for smoothing baseline
+    private val baselineAlpha = 0.05f
 
     private fun startMicrophoneMonitoring() {
-        val audioSensitivity = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-            .getFloat("audio_threshold", 800f)
-            
         microphoneJob?.cancel()
-        microphoneJob = microphoneDriver.observeNoise()
-            .onEach { amplitude ->
-                val ampFloat = amplitude.toFloat()
-                
-                // 1. Update Baseline (Exponential Moving Average)
-                // This establishes the "noise floor" of the room
-                if (audioBaseline == 0f) {
-                    audioBaseline = ampFloat
-                } else if (ampFloat < audioBaseline * 1.5f) { // Only update baseline with quiet sounds
-                    audioBaseline = (baselineAlpha * ampFloat) + (1 - baselineAlpha) * audioBaseline
-                }
-                
-                _audioLevel.value = ampFloat
+        
+        val threshold = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+            .getFloat("audio_threshold", 800f)
 
-                // 2. Trigger Check (Relative to Baseline)
-                // Haven standard: trigger = current > baseline + relative_threshold
-                if (_isMonitoring.value) {
-                    if (ampFloat > audioBaseline + audioSensitivity) {
-                        if (!isRecordingAudio) {
-                            Log.i("MonitoringService", "Triggering relative audio recording: $ampFloat > ${audioBaseline + audioSensitivity}")
-                            handleEvent(SensorType.MICROPHONE, "Sudden sound detected: +${(ampFloat - audioBaseline).toInt()} over baseline")
-                            startAudioRecording()
-                        } else {
-                            lastNoiseTime = System.currentTimeMillis()
+        microphoneJob = serviceScope.launch {
+            microphoneDriver.observeNoise()
+                .conflate()
+                .collect { amplitude ->
+                    _audioLevel.value = amplitude.toFloat()
+                    
+                    if (audioBaseline == 0f) audioBaseline = amplitude.toFloat()
+                    audioBaseline = (1 - baselineAlpha) * audioBaseline + baselineAlpha * amplitude
+
+                    if (_isMonitoring.value && !isRecordingAudio && amplitude > audioBaseline + threshold) {
+                        Log.i("MonitoringService", "AUDIO TRIGGER: $amplitude (Baseline: $audioBaseline, Threshold: $threshold)")
+                        isRecordingAudio = true // SET IMMEDIATELY to prevent multiple triggers
+                        serviceScope.launch {
+                            val eventId = handleEvent(SensorType.MICROPHONE, "Acoustic event detected: Amplitude $amplitude")
+                            startAudioRecording(eventId)
                         }
                     }
                 }
-            }.launchIn(serviceScope)
+        }
     }
 
-    private fun startAudioRecording() {
+    private fun startAudioRecording(eventId: Long = -1) {
+        // isRecordingAudio is already set to true in the trigger block
+        
+        // STOP monitoring while recording to avoid mic conflict
+        microphoneJob?.cancel()
+        microphoneJob = null
+        
+        val captureDuration = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+            .getFloat("audio_capture_duration", 5f).toLong() * 1000
+
         serviceScope.launch {
-            if (isRecordingAudio) return@launch
             try {
-                isRecordingAudio = true
-                lastNoiseTime = System.currentTimeMillis()
-                
-                Log.d("MonitoringService", "Pausing noise observation to record audio...")
-                microphoneJob?.cancel()
-                delay(500) // Increase delay to ensure hardware is released
-                
-                val audioFile = audioRecorder.startRecording()
-                if (audioFile != null) {
-                    Log.i("MonitoringService", "AUDIO RECORDING STARTED: ${audioFile.name}")
-                    
-                    val startTime = System.currentTimeMillis()
-                    // Adaptive stop: stop if quiet for 3s OR max 10s reached
-                    while (System.currentTimeMillis() - lastNoiseTime < 3000 && 
-                           System.currentTimeMillis() - startTime < 10000) {
-                        delay(500)
-                        val amplitude = audioRecorder.getMaxAmplitude()
-                        if (amplitude > 500) { 
-                            lastNoiseTime = System.currentTimeMillis()
-                        }
+                Log.d("MonitoringService", "Capturing ${captureDuration/1000}s audio clip of the event...")
+                audioRecorder.startRecording()
+                delay(captureDuration)
+                val uri = audioRecorder.stopRecording()
+                if (uri != null) {
+                    Log.i("MonitoringService", "AUDIO CLIP SAVED: $uri")
+                    if (eventId != -1L) {
+                        sensorRepository.updateEventAudio(eventId, uri.toString())
+                        Log.d("MonitoringService", "Event $eventId updated with audio URI")
                     }
-                    
-                    val uri = audioRecorder.stopRecording()
-                    Log.i("MonitoringService", "AUDIO RECORDING STOPPED: $uri")
-                    
-                    // Crucial: Only save if we actually recorded something significant
-                    // to prevent "adding by itself" loops
-                    sensorRepository.saveEvent(
-                        Event(
-                            sensorType = SensorType.MICROPHONE,
-                            description = "Sound detected and recorded",
-                            mediaUri = uri?.toString()
-                        )
-                    )
                 }
             } catch (e: Exception) {
                 Log.e("MonitoringService", "Audio recording failed", e)
@@ -251,43 +340,42 @@ class MonitoringService : LifecycleService() {
         }
     }
 
-    private fun handleEvent(type: SensorType, description: String) {
+    private suspend fun handleEvent(type: SensorType, description: String): Long {
         val now = System.currentTimeMillis()
         val lastTime = lastEventTime[type] ?: 0L
         
         // Cooldown: 3 seconds for the same type, unless it's a microphone event which has its own logic
         if (type != SensorType.MICROPHONE && now - lastTime < 3000) {
             Log.d("MonitoringService", "Event suppressed by cooldown: $type")
-            return
+            return -1
         }
         
         lastEventTime[type] = now
 
-        serviceScope.launch {
-            Log.i("MonitoringService", ">>> TRIGGERING EVENT: $type - $description")
-            
-            val mediaUri = try { 
-                Log.d("MonitoringService", "Attempting to capture photo for event...")
-                val uri = cameraManager.capturePhoto()
-                if (uri != null) {
-                    Log.i("MonitoringService", "PHOTO CAPTURED: $uri")
-                } else {
-                    Log.w("MonitoringService", "PHOTO CAPTURE RETURNED NULL")
-                }
-                uri?.toString()
-            } catch (e: Exception) { 
-                Log.e("MonitoringService", "CRITICAL FAILURE: Photo capture threw exception", e)
-                null 
+        Log.i("MonitoringService", ">>> TRIGGERING EVENT: $type - $description")
+        
+        val mediaUri = try { 
+            Log.d("MonitoringService", "Attempting to capture photo for event...")
+            val uri = cameraManager.capturePhoto()
+            if (uri != null) {
+                Log.i("MonitoringService", "PHOTO CAPTURED: $uri")
+            } else {
+                Log.w("MonitoringService", "PHOTO CAPTURE RETURNED NULL")
             }
-
-            val event = Event(
-                sensorType = type,
-                description = description,
-                mediaUri = mediaUri,
-            )
-            sensorRepository.saveEvent(event)
-            Log.i("MonitoringService", "EVENT SAVED TO DATABASE: $type")
+            uri?.toString()
+        } catch (e: Exception) { 
+            Log.e("MonitoringService", "CRITICAL FAILURE: Photo capture threw exception", e)
+            null 
         }
+
+        val event = Event(
+            sensorType = type,
+            description = description,
+            mediaUri = mediaUri,
+        )
+        val id = sensorRepository.saveEvent(event)
+        Log.i("MonitoringService", "EVENT SAVED TO DATABASE: $type (ID: $id)")
+        return id
     }
 
     private fun createNotificationChannel() {
@@ -301,21 +389,36 @@ class MonitoringService : LifecycleService() {
     }
 
     private fun createNotification(): Notification {
+        val stopIntent = Intent(this, MonitoringService::class.java).apply {
+            action = ACTION_STOP_SERVICE
+        }
+        val stopPendingIntent = PendingIntent.getService(
+            this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Neruppu Monitoring")
-            .setContentText("Sensors are active and protecting your device.")
+            .setContentText("System is active and monitoring sensors")
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setOngoing(true)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
     }
 
     override fun onDestroy() {
+        Log.d("MonitoringService", "onDestroy [PID: ${Process.myPid()}]")
         super.onDestroy()
-        // Note: CameraManager unbind is handled by lifecycleOwner (this)
+        getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(prefsListener)
+        releaseWakeLock()
+        heartbeatJob?.cancel()
+        sensorsJob?.cancel()
         serviceScope.cancel()
     }
 
     companion object {
-        private const val NOTIFICATION_ID = 1
-        private const val CHANNEL_ID = "monitoring_channel"
+        const val NOTIFICATION_ID = 1
+        const val CHANNEL_ID = "monitoring_channel"
+        const val ACTION_STOP_SERVICE = "org.havenapp.neruppu.STOP_SERVICE"
     }
 }

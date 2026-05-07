@@ -17,8 +17,15 @@ class SensorRepositoryImpl(
         }
     }
 
-    override suspend fun saveEvent(event: Event) {
-        eventDao.insertEvent(event.toEntity())
+    override suspend fun saveEvent(event: Event): Long {
+        return eventDao.insertEvent(event.toEntity())
+    }
+
+    override suspend fun updateEventAudio(eventId: Long, audioUri: String) {
+        val entity = eventDao.getEventById(eventId)
+        if (entity != null) {
+            eventDao.updateEvent(entity.copy(audioUri = audioUri))
+        }
     }
 
     override suspend fun clearEvents() {

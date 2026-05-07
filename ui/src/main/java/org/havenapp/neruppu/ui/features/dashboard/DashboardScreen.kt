@@ -30,15 +30,20 @@ import androidx.compose.ui.text.font.FontWeight
 fun DashboardScreen(
     isMonitoring: Boolean,
     useFrontCamera: Boolean,
+    stealthMode: Boolean,
     motionLevel: Double,
     audioLevel: Float,
     motionSensitivity: Float,
     audioSensitivity: Float,
+    captureDuration: Float = 5f,
     motionHistory: List<Float>,
+    motionGrid: FloatArray = FloatArray(0),
     onToggleMonitoring: () -> Unit,
     onToggleCamera: (Boolean) -> Unit,
+    onToggleStealthMode: (Boolean) -> Unit,
     onSensitivityChange: (Float) -> Unit,
     onAudioSensitivityChange: (Float) -> Unit,
+    onCaptureDurationChange: (Float) -> Unit = {},
     onBindCamera: (PreviewView, LifecycleOwner) -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -65,20 +70,48 @@ fun DashboardScreen(
                 update = { }
             )
             
-            // Motion Pulse Overlay (Transparent)
+            // HAVEN STYLE MOTION GRID OVERLAY
+            if (!stealthMode && motionGrid.isNotEmpty()) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val cols = 20
+                    val rows = 15
+                    val cellWidth = size.width / cols
+                    val cellHeight = size.height / rows
+                    
+                    for (i in motionGrid.indices) {
+                        val intensity = motionGrid[i]
+                        if (intensity > 0.1f) {
+                            val r = i / cols
+                            val c = i % cols
+                            drawRect(
+                                color = Color.Yellow.copy(alpha = (intensity * 0.5f).coerceIn(0f, 0.8f)),
+                                topLeft = androidx.compose.ui.geometry.Offset(c * cellWidth, r * cellHeight),
+                                size = androidx.compose.ui.geometry.Size(cellWidth, cellHeight)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Motion Pulse Overlay (Transparent) - keep it as a subtle flash
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Color.Yellow.copy(alpha = (motionLevel / 100.0).coerceIn(0.0, 0.3).toFloat())
+                        Color.Yellow.copy(alpha = (motionLevel / 200.0).coerceIn(0.0, 0.1).toFloat())
                     )
             )
+
+            // STEALTH MODE OVERLAY
+            if (stealthMode) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+            }
         }
 
         // LAYER 1: Top UI Elements (Header)
         Column(modifier = Modifier.fillMaxSize()) {
             Surface(
-                color = Color.Black.copy(alpha = 0.6f),
+                color = if (stealthMode) Color.Transparent else Color.Black.copy(alpha = 0.6f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -89,33 +122,35 @@ fun DashboardScreen(
                     Column {
                         Text(
                             "NERUPPU SECURITY",
-                            color = Color.White,
+                            color = if (stealthMode) Color.Transparent else Color.White,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = if (isMonitoring) "SYSTEM ACTIVE" else "SYSTEM IDLE",
-                            color = if (isMonitoring) Color.Red else Color.Green,
+                            color = if (stealthMode) Color.Transparent else (if (isMonitoring) Color.Red else Color.Green),
                             style = MaterialTheme.typography.labelMedium
                         )
                     }
                     
                     // Audio Meter (Compact)
-                    Box(
-                        modifier = Modifier
-                            .width(60.dp)
-                            .height(30.dp)
-                            .background(Color.DarkGray.copy(alpha = 0.5f), CircleShape)
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        val normalizedAudio = (audioLevel / 5000f).coerceIn(0f, 1f)
+                    if (!stealthMode) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(normalizedAudio)
-                                .fillMaxHeight(0.4f)
-                                .background(if (audioLevel > audioSensitivity) Color.Red else Color.Green, CircleShape)
-                        )
+                                .width(60.dp)
+                                .height(30.dp)
+                                .background(Color.DarkGray.copy(alpha = 0.5f), CircleShape)
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            val normalizedAudio = (audioLevel / 5000f).coerceIn(0f, 1f)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(normalizedAudio)
+                                    .fillMaxHeight(0.4f)
+                                    .background(if (audioLevel > audioSensitivity) Color.Red else Color.Green, CircleShape)
+                            )
+                        }
                     }
                 }
             }
@@ -123,38 +158,57 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             // LAYER 2: Bottom Controls (Floating on top of camera)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), MaterialTheme.shapes.large)
-                    .padding(16.dp)
-            ) {
-                // Settings Row
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Front Camera", color = Color.White, style = MaterialTheme.typography.bodySmall)
-                    Switch(
-                        checked = useFrontCamera,
-                        onCheckedChange = onToggleCamera,
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.Yellow),
-                        modifier = Modifier.scale(0.8f)
+            if (!stealthMode) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), MaterialTheme.shapes.large)
+                        .padding(16.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Stealth Mode", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                        Switch(
+                            checked = stealthMode,
+                            onCheckedChange = onToggleStealthMode,
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.Red),
+                            modifier = Modifier.scale(0.8f)
+                        )
+                    }
+
+                    // Settings Row
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Front Camera", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                        Switch(
+                            checked = useFrontCamera,
+                            onCheckedChange = onToggleCamera,
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.Yellow),
+                            modifier = Modifier.scale(0.8f)
+                        )
+                    }
+
+                    SensitivitySlider(
+                        label = "Motion: ${String.format("%.1f", motionSensitivity)}",
+                        value = motionSensitivity,
+                        onValueChange = onSensitivityChange
                     )
+                    
+                    SensitivitySlider(
+                        label = "Audio: ${String.format("%.0f", audioSensitivity)}",
+                        value = audioSensitivity,
+                        valueRange = 0f..5000f,
+                        onValueChange = onAudioSensitivityChange
+                    )
+
+                    SensitivitySlider(
+                        label = "Capture Duration: ${String.format("%.0f", captureDuration)}s",
+                        value = captureDuration,
+                        valueRange = 5f..30f,
+                        onValueChange = onCaptureDurationChange
+                    )
+
+                    Spacer(modifier = Modifier.height(80.dp)) // Space for the Start/Stop button
                 }
-
-                SensitivitySlider(
-                    label = "Motion: ${String.format("%.1f", motionSensitivity)}",
-                    value = motionSensitivity,
-                    onValueChange = onSensitivityChange
-                )
-                
-                SensitivitySlider(
-                    label = "Audio: ${String.format("%.0f", audioSensitivity)}",
-                    value = audioSensitivity,
-                    valueRange = 0f..5000f,
-                    onValueChange = onAudioSensitivityChange
-                )
-
-                Spacer(modifier = Modifier.height(80.dp)) // Space for the Start/Stop button
             }
         }
 
@@ -168,27 +222,29 @@ fun DashboardScreen(
             Button(
                 onClick = onToggleMonitoring,
                 modifier = Modifier
-                    .size(120.dp)
-                    .shadow(if (isMonitoring) 20.dp else 0.dp, CircleShape, spotColor = Color.Red)
+                    .size(if (stealthMode) 40.dp else 120.dp) // Shrink button in stealth mode
+                    .shadow(if (isMonitoring && !stealthMode) 20.dp else 0.dp, CircleShape, spotColor = Color.Red)
                     .border(
                         width = 4.dp,
                         brush = Brush.radialGradient(
-                            colors = listOf(Color(0xFFFFD700), Color.Transparent) // Haven Gold
+                            colors = if (stealthMode) listOf(Color.Transparent, Color.Transparent) else listOf(Color(0xFFFFD700), Color.Transparent)
                         ),
                         shape = CircleShape
                     ),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isMonitoring) Color.Red.copy(alpha = 0.8f) else Color.DarkGray.copy(alpha = 0.8f)
+                    containerColor = if (stealthMode) Color.Transparent else (if (isMonitoring) Color.Red.copy(alpha = 0.8f) else Color.DarkGray.copy(alpha = 0.8f))
                 ),
                 shape = CircleShape,
                 contentPadding = PaddingValues(0.dp)
             ) {
-                Text(
-                    text = if (isMonitoring) "STOP" else "START",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                if (!stealthMode) {
+                    Text(
+                        text = if (isMonitoring) "STOP" else "START",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

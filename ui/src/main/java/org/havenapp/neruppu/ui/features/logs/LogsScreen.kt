@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import coil.compose.rememberAsyncImagePainter
@@ -116,19 +117,20 @@ fun EventItem(event: Event) {
             
             event.mediaUri?.let { uriString ->
                 Spacer(modifier = Modifier.height(12.dp))
-                if (uriString.endsWith(".mp4")) {
-                    AudioPlayer(uriString = uriString)
-                } else {
-                    Image(
-                        painter = rememberAsyncImagePainter(uriString),
-                        contentDescription = "Captured Evidence",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                Image(
+                    painter = rememberAsyncImagePainter(uriString),
+                    contentDescription = "Captured Evidence",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            event.audioUri?.let { uriString ->
+                Spacer(modifier = Modifier.height(12.dp))
+                AudioPlayer(uriString = uriString)
             }
         }
     }
@@ -141,9 +143,11 @@ fun AudioPlayer(uriString: String) {
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var duration by remember { mutableIntStateOf(0) }
     var currentPosition by remember { mutableIntStateOf(0) }
+    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
 
-    LaunchedEffect(isPlaying) {
+    LaunchedEffect(isPlaying, playbackSpeed) {
         if (isPlaying) {
+            mediaPlayer?.playbackParams = mediaPlayer?.playbackParams?.setSpeed(playbackSpeed) ?: android.media.PlaybackParams().setSpeed(playbackSpeed)
             while (isPlaying && mediaPlayer?.isPlaying == true) {
                 currentPosition = mediaPlayer?.currentPosition ?: 0
                 kotlinx.coroutines.delay(100)
@@ -192,12 +196,14 @@ fun AudioPlayer(uriString: String) {
                                     setDataSource(context, contentUri)
                                     setOnPreparedListener { 
                                         duration = it.duration
+                                        it.playbackParams = it.playbackParams.setSpeed(playbackSpeed)
                                         it.start()
                                         isPlaying = true
                                     }
                                     setOnCompletionListener { 
                                         isPlaying = false
                                         currentPosition = 0
+                                        it.seekTo(0)
                                     }
                                     prepareAsync()
                                 }
@@ -218,6 +224,19 @@ fun AudioPlayer(uriString: String) {
                 )
             }
 
+            TextButton(
+                onClick = {
+                    playbackSpeed = when (playbackSpeed) {
+                        1.0f -> 1.5f
+                        1.5f -> 2.0f
+                        else -> 1.0f
+                    }
+                },
+                modifier = Modifier.width(60.dp)
+            ) {
+                Text("${playbackSpeed}x", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            }
+
             Spacer(modifier = Modifier.width(8.dp))
 
             WavelengthVisualizer(isAnimating = isPlaying, modifier = Modifier.weight(1f).height(40.dp))
@@ -226,11 +245,19 @@ fun AudioPlayer(uriString: String) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.fillMaxWidth()) {
-            LinearProgressIndicator(
-                progress = if (duration > 0) currentPosition.toFloat() / duration else 0f,
+            Slider(
+                value = if (duration > 0) currentPosition.toFloat() else 0f,
+                onValueChange = { 
+                    currentPosition = it.toInt()
+                    mediaPlayer?.seekTo(it.toInt())
+                },
+                valueRange = 0f..(if (duration > 0) duration.toFloat() else 1f),
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.outlineVariant
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                )
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),

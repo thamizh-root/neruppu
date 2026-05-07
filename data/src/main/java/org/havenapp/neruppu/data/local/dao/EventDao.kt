@@ -13,7 +13,13 @@ interface EventDao {
     fun getEvents(): Flow<List<EventEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertEvent(event: EventEntity)
+    suspend fun insertEvent(event: EventEntity): Long
+
+    @Query("SELECT * FROM events WHERE id = :eventId")
+    suspend fun getEventById(eventId: Long): EventEntity?
+
+    @androidx.room.Update
+    suspend fun updateEvent(event: EventEntity)
 
     @Query("DELETE FROM events")
     suspend fun clearEvents()

@@ -3,8 +3,11 @@ package org.havenapp.neruppu
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
 import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.domain.repository.SensorRepository
@@ -63,6 +69,7 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, MonitoringService::class.java)
         startForegroundService(intent)
         bindService(intent, connection, BIND_AUTO_CREATE)
+        requestIgnoreBatteryOptimizations()
     }
 
     private fun checkAndRequestPermissions() {
@@ -83,6 +90,17 @@ class MainActivity : ComponentActivity() {
             val intent = Intent(this, MonitoringService::class.java)
             startForegroundService(intent)
             bindService(intent, connection, BIND_AUTO_CREATE)
+            requestIgnoreBatteryOptimizations()
+        }
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
         }
     }
 
@@ -109,26 +127,30 @@ class MainActivity : ComponentActivity() {
             NeruppuTheme {
                 var selectedTab by remember { mutableIntStateOf(0) }
                 val logsViewModel: LogsViewModel = remember { LogsViewModel(sensorRepository) }
+                val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                val stealthMode = prefs.getBoolean("stealth_mode", false)
 
                 Scaffold(
                     containerColor = Color.Transparent, // Ensure background shows through
                     bottomBar = {
-                        NavigationBar(
-                            containerColor = Color.Black.copy(alpha = 0.8f),
-                            contentColor = Color.White
-                        ) {
-                            NavigationBarItem(
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 },
-                                icon = { Icon(Icons.Default.Home, contentDescription = "Dashboard") },
-                                label = { Text("Dashboard") }
-                            )
-                            NavigationBarItem(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                icon = { Icon(Icons.Default.List, contentDescription = "Logs") },
-                                label = { Text("Logs") }
-                            )
+                        if (!stealthMode) {
+                            NavigationBar(
+                                containerColor = Color.Black.copy(alpha = 0.8f),
+                                contentColor = Color.White
+                            ) {
+                                NavigationBarItem(
+                                    selected = selectedTab == 0,
+                                    onClick = { selectedTab = 0 },
+                                    icon = { Icon(Icons.Default.Home, contentDescription = "Dashboard") },
+                                    label = { Text("Dashboard") }
+                                )
+                                NavigationBarItem(
+                                    selected = selectedTab == 1,
+                                    onClick = { selectedTab = 1 },
+                                    icon = { Icon(Icons.Default.List, contentDescription = "Logs") },
+                                    label = { Text("Logs") }
+                                )
+                            }
                         }
                     }
                 ) { paddingValues ->
@@ -144,12 +166,15 @@ class MainActivity : ComponentActivity() {
                                 if (service != null) {
                                     val isMonitoring by service.isMonitoring.collectAsState()
                                     val motionLevel by service.motionLevel.collectAsState()
+                                    val motionGrid by service.motionGrid.collectAsState()
                                     val audioLevel by service.audioLevel.collectAsState()
                                     
                                     val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                     val useFrontCamera = prefs.getBoolean("use_front_camera", false)
+                                    val stealthMode = prefs.getBoolean("stealth_mode", false)
                                     val motionSensitivity = prefs.getFloat("motion_sensitivity", 15f)
                                     val audioSensitivity = prefs.getFloat("audio_threshold", 800f)
+                                    val captureDuration = prefs.getFloat("audio_capture_duration", 5f)
 
                                     val motionHistory = remember { mutableStateListOf<Float>() }
                                     LaunchedEffect(motionLevel) {
@@ -160,11 +185,14 @@ class MainActivity : ComponentActivity() {
                                     DashboardScreen(
                                         isMonitoring = isMonitoring,
                                         useFrontCamera = useFrontCamera,
+                                        stealthMode = stealthMode,
                                         motionLevel = motionLevel,
                                         audioLevel = audioLevel,
                                         motionSensitivity = motionSensitivity,
                                         audioSensitivity = audioSensitivity,
+                                        captureDuration = captureDuration,
                                         motionHistory = motionHistory,
+                                        motionGrid = motionGrid,
                                         onSensitivityChange = { sensitivity ->
                                             getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                                 .edit()
@@ -180,6 +208,12 @@ class MainActivity : ComponentActivity() {
                                             val intent = Intent(this@MainActivity, MonitoringService::class.java)
                                             startForegroundService(intent)
                                         },
+                                        onCaptureDurationChange = { duration ->
+                                            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                                                .edit()
+                                                .putFloat("audio_capture_duration", duration)
+                                                .apply()
+                                        },
                                         onToggleCamera = { useFront ->
                                             getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                                 .edit()
@@ -188,6 +222,12 @@ class MainActivity : ComponentActivity() {
                                             val intent = Intent(this@MainActivity, MonitoringService::class.java)
                                             startForegroundService(intent)
                                         },
+                                        onToggleStealthMode = { stealth: Boolean ->
+                                            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                                                .edit()
+                                                .putBoolean("stealth_mode", stealth)
+                                                .apply()
+                                        },
                                         onToggleMonitoring = { 
                                             service.toggleMonitoring()
                                         },
@@ -195,6 +235,26 @@ class MainActivity : ComponentActivity() {
                                             service.setPreviewSurface(previewView.surfaceProvider)
                                         }
                                     )
+                                    
+                                    val lifecycleOwner = LocalLifecycleOwner.current
+                                    DisposableEffect(lifecycleOwner) {
+                                        val observer = LifecycleEventObserver { _, event ->
+                                            when (event) {
+                                                Lifecycle.Event.ON_RESUME -> service.setUiActive(true)
+                                                Lifecycle.Event.ON_PAUSE -> {
+                                                    service.setUiActive(false)
+                                                    service.setPreviewSurface(null)
+                                                }
+                                                else -> {}
+                                            }
+                                        }
+                                        lifecycleOwner.lifecycle.addObserver(observer)
+                                        onDispose {
+                                            lifecycleOwner.lifecycle.removeObserver(observer)
+                                            service.setUiActive(false)
+                                            service.setPreviewSurface(null)
+                                        }
+                                    }
                                 } else {
                                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                         CircularProgressIndicator()

@@ -24,15 +24,18 @@ class CameraManager(private val context: Context) {
     private var imageCapture: ImageCapture? = null
     private var preview: Preview? = null
     private var imageAnalysis: ImageAnalysis? = null
+    var currentSurfaceProvider: Preview.SurfaceProvider? = null
     
     private val mutex = Mutex()
-    private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     
-    private var isBound = false
-    private var currentCameraSide: Boolean? = null
-    private var currentLifecycleOwner: LifecycleOwner? = null
+    var isBound = false
+    var currentCameraSide: Boolean? = null
+    var currentLifecycleOwner: LifecycleOwner? = null
 
     fun setPreviewSurface(surfaceProvider: Preview.SurfaceProvider?) {
+        Log.d("CameraManager", "Setting preview surface: ${if (surfaceProvider != null) "ATTACHED" else "DETACHED"}")
+        currentSurfaceProvider = surfaceProvider
         preview?.setSurfaceProvider(surfaceProvider)
     }
 
@@ -83,10 +86,12 @@ class CameraManager(private val context: Context) {
     fun bindCamera(
         lifecycleOwner: LifecycleOwner,
         useFrontCamera: Boolean,
-        onMotionDetected: (Double) -> Unit
+        surfaceProvider: Preview.SurfaceProvider?,
+        onMotionDetected: (Double) -> Unit,
+        onMotionGrid: (FloatArray) -> Unit = {}
     ) {
-        if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner) {
-            Log.d("CameraManager", "Camera already bound to service lifecycle. Keeping active.")
+        if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner && currentSurfaceProvider == surfaceProvider) {
+            Log.d("CameraManager", "Camera already bound to service lifecycle with same surface. Keeping active.")
             return
         }
 
@@ -94,11 +99,12 @@ class CameraManager(private val context: Context) {
             try {
                 cameraProvider.unbindAll()
                 
-                preview = Preview.Builder().build()
+                val useCases = mutableListOf<androidx.camera.core.UseCase>()
 
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()
+                useCases.add(imageCapture!!)
 
                 @Suppress("DEPRECATION")
                 imageAnalysis = ImageAnalysis.Builder()
@@ -106,8 +112,18 @@ class CameraManager(private val context: Context) {
                     .setTargetResolution(android.util.Size(640, 480))
                     .build()
                     .also {
-                        it.setAnalyzer(cameraExecutor, MotionAnalyzer(onMotionDetected))
+                        it.setAnalyzer(cameraExecutor, MotionAnalyzer(onMotionDetected, onMotionGrid))
                     }
+                useCases.add(imageAnalysis!!)
+
+                if (surfaceProvider != null) {
+                    preview = Preview.Builder().build().apply {
+                        setSurfaceProvider(surfaceProvider)
+                    }
+                    useCases.add(preview!!)
+                } else {
+                    preview = null
+                }
 
                 val cameraSelector = if (useFrontCamera) {
                     CameraSelector.DEFAULT_FRONT_CAMERA
@@ -118,21 +134,21 @@ class CameraManager(private val context: Context) {
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
-                    preview,
-                    imageCapture,
-                    imageAnalysis
+                    *useCases.toTypedArray()
                 )
                 
                 isBound = true
                 currentCameraSide = useFrontCamera
                 currentLifecycleOwner = lifecycleOwner
-                Log.d("CameraManager", "CAMERA SYSTEM INITIALIZED BY SERVICE: Bound to $lifecycleOwner")
+                currentSurfaceProvider = surfaceProvider
+                Log.d("CameraManager", "CAMERA SYSTEM INITIALIZED BY SERVICE: Bound to $lifecycleOwner (Surface: ${if (surfaceProvider != null) "YES" else "NO"})")
             } catch (exc: Exception) {
                 Log.e("CameraManager", "CRITICAL: Service-side camera binding failed", exc)
                 isBound = false
             }
         }
     }
+
 
     fun unbind() {
         getCameraProvider { cameraProvider ->
