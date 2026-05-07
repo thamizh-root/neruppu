@@ -6,7 +6,7 @@ Neruppu is a comprehensive Android security application designed to turn your de
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue.svg)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-1.5-orange.svg)](https://developer.android.com/jetpack/compose)
 
-## 🚀 Features
+## Features
 
 - **Motion Detection**: Advanced motion analysis using CameraX and physical displacement tracking via Accelerometer.
 - **Acoustic Monitoring**: Real-time microphone level tracking with automatic audio recording when sudden noise occurs.
@@ -16,7 +16,7 @@ Neruppu is a comprehensive Android security application designed to turn your de
 - **Adaptive Sensitivity**: User-configurable thresholds for motion and sound to minimize false positives.
 - **Real-time Dashboard**: Live visualization of sensor data and system status built with Jetpack Compose.
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **UI**: [Jetpack Compose](https://developer.android.com/jetpack/compose) for a modern, reactive UI.
 - **Architecture**: Clean Architecture with a Multi-Module setup.
@@ -26,7 +26,7 @@ Neruppu is a comprehensive Android security application designed to turn your de
 - **Concurrency**: Kotlin [Coroutines](https://kotlinlang.org/docs/coroutines-overview.html) & [Flow](https://kotlinlang.org/docs/flow.html) for asynchronous processing.
 - **Background Work**: [Foreground Services](https://developer.android.com/guide/components/foreground-services) for reliable background monitoring.
 
-## 🏗 Project Structure
+## Project Structure
 
 The project follows a modular Clean Architecture pattern:
 
@@ -36,7 +36,7 @@ The project follows a modular Clean Architecture pattern:
 - `:ui` - Common UI components and feature-specific Compose screens.
 - `:core` - Shared utilities, theme definitions, and base classes.
 
-## 🏁 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Android Studio Iguana (2023.2.1) or newer.
