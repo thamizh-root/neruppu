@@ -36,14 +36,6 @@ The project follows a modular Clean Architecture pattern:
 - `:ui` - Common UI components and feature-specific Compose screens.
 - `:core` - Shared utilities, theme definitions, and base classes.
 
-## 📸 Screenshots
-
-| Dashboard | Event Logs |
-| :---: | :---: |
-| ![Dashboard Placeholder](https://via.placeholder.com/300x600?text=Dashboard) | ![Logs Placeholder](https://via.placeholder.com/300x600?text=Event+Logs) |
-
-*(Note: Replace placeholders with actual app screenshots)*
-
 ## 🏁 Getting Started
 
 ### Prerequisites
@@ -52,10 +44,7 @@ The project follows a modular Clean Architecture pattern:
 - A physical Android device (recommended for sensor testing).
 
 ### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/neruppu.git
-   ```
+1. Clone the repository.
 2. Open the project in Android Studio.
 3. Sync Project with Gradle Files.
 4. Run the `:app` module on your device.
