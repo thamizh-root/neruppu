@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.havenapp.neruppu.data.camera.analyzer.MotionAnalyzerTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-05-06T18:04:56" hostname="PRESIDENT" time="3.067">
+  <properties/>
+  <testcase name="test motion detection calculation" classname="org.havenapp.neruppu.data.camera.analyzer.MotionAnalyzerTest" time="3.067"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[WARNING: A Java agent has been loaded dynamically (C:\Users\write\.gradle\caches\modules-2\files-2.1\net.bytebuddy\byte-buddy-agent\1.14.6\46e2545d7a97b6ccb195621650c5957279eb4812\byte-buddy-agent-1.14.6.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+]]></system-err>
+</testsuite>
