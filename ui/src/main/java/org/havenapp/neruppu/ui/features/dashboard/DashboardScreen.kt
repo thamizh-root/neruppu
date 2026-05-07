@@ -15,6 +15,15 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,143 +31,163 @@ fun DashboardScreen(
     isMonitoring: Boolean,
     useFrontCamera: Boolean,
     motionLevel: Double,
+    audioLevel: Float,
     motionSensitivity: Float,
+    audioSensitivity: Float,
     motionHistory: List<Float>,
     onToggleMonitoring: () -> Unit,
     onToggleCamera: (Boolean) -> Unit,
     onSensitivityChange: (Float) -> Unit,
+    onAudioSensitivityChange: (Float) -> Unit,
     onBindCamera: (PreviewView, LifecycleOwner) -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     
-    Scaffold(
-        containerColor = Color.Black,
-        topBar = {
-            TopAppBar(
-                title = { Text("NERUPPU ACTIVATED", color = Color.White) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black)
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color.Black)
-        ) {
-            // Camera Preview Section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(250.dp)
-                    .padding(8.dp)
-                    .background(Color.DarkGray, MaterialTheme.shapes.medium)
-            ) {
-                var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
-                
-                LaunchedEffect(previewViewRef, lifecycleOwner, useFrontCamera) {
-                    previewViewRef?.let {
-                        onBindCamera(it, lifecycleOwner)
-                    }
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // LAYER 0: Full Screen Camera Background
+        Box(modifier = Modifier.fillMaxSize()) {
+            var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
+            
+            LaunchedEffect(previewViewRef, lifecycleOwner, useFrontCamera) {
+                previewViewRef?.let {
+                    onBindCamera(it, lifecycleOwner)
                 }
-
-                DisposableEffect(Unit) {
-                    onDispose {
-                        previewViewRef?.let {
-                            onBindCamera(it, lifecycleOwner) // This might need a way to "unbind"
-                        }
-                        // Actually, just letting it be is fine if the service manages it, 
-                        // but we should probably tell the service to null out the surface.
-                    }
-                }
-
-                AndroidView(
-                    factory = { context ->
-                        PreviewView(context).apply {
-                            scaleType = PreviewView.ScaleType.FILL_CENTER
-                            previewViewRef = this
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                    update = { 
-                        // update is called on every recomposition, we use LaunchedEffect instead
-                    }
-                )
-                
-                // Motion Pulse Overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Color.Yellow.copy(alpha = (motionLevel / 100.0).coerceIn(0.0, 0.4).toFloat())
-                        )
-                )
             }
 
-            // Status Bar
-            Text(
-                text = if (isMonitoring) "SYSTEM MONITORING..." else "SYSTEM IDLE",
-                color = if (isMonitoring) Color.Red else Color.Green,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            AndroidView(
+                factory = { context ->
+                    PreviewView(context).apply {
+                        scaleType = PreviewView.ScaleType.FILL_CENTER
+                        previewViewRef = this
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { }
             )
-
-            // Motion Graph (Haven Style)
-            MotionGraph(
-                history = motionHistory,
-                sensitivity = motionSensitivity,
+            
+            // Motion Pulse Overlay (Transparent)
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(16.dp)
+                    .fillMaxSize()
+                    .background(
+                        Color.Yellow.copy(alpha = (motionLevel / 100.0).coerceIn(0.0, 0.3).toFloat())
+                    )
             )
+        }
 
-            // Controls
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .background(Color.DarkGray.copy(alpha = 0.3f), MaterialTheme.shapes.medium)
-                    .padding(16.dp)
+        // LAYER 1: Top UI Elements (Header)
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                color = Color.Black.copy(alpha = 0.6f),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                SensitivitySlider(
-                    label = "Motion Sensitivity: ${String.format("%.1f", motionSensitivity)}",
-                    value = motionSensitivity,
-                    onValueChange = onSensitivityChange
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Front Camera", color = Color.White)
-                    Switch(
-                        checked = useFrontCamera,
-                        onCheckedChange = onToggleCamera,
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.Yellow)
-                    )
+                    Column {
+                        Text(
+                            "NERUPPU SECURITY",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isMonitoring) "SYSTEM ACTIVE" else "SYSTEM IDLE",
+                            color = if (isMonitoring) Color.Red else Color.Green,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                    
+                    // Audio Meter (Compact)
+                    Box(
+                        modifier = Modifier
+                            .width(60.dp)
+                            .height(30.dp)
+                            .background(Color.DarkGray.copy(alpha = 0.5f), CircleShape)
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        val normalizedAudio = (audioLevel / 5000f).coerceIn(0f, 1f)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(normalizedAudio)
+                                .fillMaxHeight(0.4f)
+                                .background(if (audioLevel > audioSensitivity) Color.Red else Color.Green, CircleShape)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Button(
-                onClick = onToggleMonitoring,
+            // LAYER 2: Bottom Controls (Floating on top of camera)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp)
-                    .height(56.dp),
+                    .background(Color.Black.copy(alpha = 0.5f), MaterialTheme.shapes.large)
+                    .padding(16.dp)
+            ) {
+                // Settings Row
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Front Camera", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                    Switch(
+                        checked = useFrontCamera,
+                        onCheckedChange = onToggleCamera,
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.Yellow),
+                        modifier = Modifier.scale(0.8f)
+                    )
+                }
+
+                SensitivitySlider(
+                    label = "Motion: ${String.format("%.1f", motionSensitivity)}",
+                    value = motionSensitivity,
+                    onValueChange = onSensitivityChange
+                )
+                
+                SensitivitySlider(
+                    label = "Audio: ${String.format("%.0f", audioSensitivity)}",
+                    value = audioSensitivity,
+                    valueRange = 0f..5000f,
+                    onValueChange = onAudioSensitivityChange
+                )
+
+                Spacer(modifier = Modifier.height(80.dp)) // Space for the Start/Stop button
+            }
+        }
+
+        // LAYER 3: Main Start/Stop Toggle (Centered above bottom nav)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 16.dp), // Height above bottom navigation
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Button(
+                onClick = onToggleMonitoring,
+                modifier = Modifier
+                    .size(120.dp)
+                    .shadow(if (isMonitoring) 20.dp else 0.dp, CircleShape, spotColor = Color.Red)
+                    .border(
+                        width = 4.dp,
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color(0xFFFFD700), Color.Transparent) // Haven Gold
+                        ),
+                        shape = CircleShape
+                    ),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isMonitoring) Color.Red else Color.DarkGray
+                    containerColor = if (isMonitoring) Color.Red.copy(alpha = 0.8f) else Color.DarkGray.copy(alpha = 0.8f)
                 ),
-                shape = MaterialTheme.shapes.medium
+                shape = CircleShape,
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
-                    text = if (isMonitoring) "STOP MONITORING" else "START MONITORING",
-                    style = MaterialTheme.typography.titleMedium
+                    text = if (isMonitoring) "STOP" else "START",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
         }
@@ -206,6 +235,7 @@ fun MotionGraph(
 fun SensitivitySlider(
     label: String,
     value: Float,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..100f,
     onValueChange: (Float) -> Unit
 ) {
     Column {
@@ -213,7 +243,7 @@ fun SensitivitySlider(
         Slider(
             value = value,
             onValueChange = onValueChange,
-            valueRange = 0f..100f,
+            valueRange = valueRange,
             colors = SliderDefaults.colors(
                 thumbColor = Color.Yellow,
                 activeTrackColor = Color.Yellow,

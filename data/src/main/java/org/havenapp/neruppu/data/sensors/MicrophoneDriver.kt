@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +20,7 @@ class MicrophoneDriver {
     private val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
     @SuppressLint("MissingPermission")
-    fun observeNoise(threshold: Int = 1500): Flow<Int> = callbackFlow {
+    fun observeNoise(): Flow<Int> = callbackFlow {
         val recorder = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             sampleRate,
@@ -29,7 +30,14 @@ class MicrophoneDriver {
         )
 
         val buffer = ShortArray(bufferSize)
-        recorder.startRecording()
+        try {
+            recorder.startRecording()
+            Log.d("MicrophoneDriver", "Started noise observation (Adaptive Baseline Mode)")
+        } catch (e: Exception) {
+            Log.e("MicrophoneDriver", "Failed to start recording", e)
+            close(e)
+            return@callbackFlow
+        }
 
         val job = launch(Dispatchers.IO) {
             while (isActive) {
@@ -42,9 +50,9 @@ class MicrophoneDriver {
                             maxAmplitude = amplitude
                         }
                     }
-                    if (maxAmplitude > threshold) {
-                        trySend(maxAmplitude)
-                    }
+                    // In adaptive mode, we send ALL amplitudes to the Service
+                    // The Service will handle the baseline calculation and thresholding
+                    trySend(maxAmplitude)
                 }
             }
         }

@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
 import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
@@ -37,19 +38,19 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var cameraManager: CameraManager
 
-    private var monitoringService: MonitoringService? = null
+    private var monitoringService = mutableStateOf<MonitoringService?>(null)
     private var isBound = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as MonitoringService.LocalBinder
-            monitoringService = binder.getService()
+            monitoringService.value = binder.getService()
             isBound = true
             Log.d("MainActivity", "Bound to MonitoringService")
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            monitoringService = null
+            monitoringService.value = null
             isBound = false
             Log.d("MainActivity", "Disconnected from MonitoringService")
         }
@@ -87,12 +88,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // No need for RECLAIM_CAMERA, the service always has it
     }
 
     override fun onPause() {
         super.onPause()
-        // No need for RECLAIM_CAMERA, the service always has it
     }
 
     override fun onDestroy() {
@@ -109,12 +108,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             NeruppuTheme {
                 var selectedTab by remember { mutableIntStateOf(0) }
-                
                 val logsViewModel: LogsViewModel = remember { LogsViewModel(sensorRepository) }
 
                 Scaffold(
+                    containerColor = Color.Transparent, // Ensure background shows through
                     bottomBar = {
-                        NavigationBar {
+                        NavigationBar(
+                            containerColor = Color.Black.copy(alpha = 0.8f),
+                            contentColor = Color.White
+                        ) {
                             NavigationBarItem(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
@@ -138,16 +140,17 @@ class MainActivity : ComponentActivity() {
                     ) {
                         when (selectedTab) {
                             0 -> {
-                                val service = monitoringService
+                                val service = monitoringService.value
                                 if (service != null) {
                                     val isMonitoring by service.isMonitoring.collectAsState()
                                     val motionLevel by service.motionLevel.collectAsState()
+                                    val audioLevel by service.audioLevel.collectAsState()
                                     
                                     val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                     val useFrontCamera = prefs.getBoolean("use_front_camera", false)
                                     val motionSensitivity = prefs.getFloat("motion_sensitivity", 15f)
+                                    val audioSensitivity = prefs.getFloat("audio_threshold", 800f)
 
-                                    // Local state for UI history
                                     val motionHistory = remember { mutableStateListOf<Float>() }
                                     LaunchedEffect(motionLevel) {
                                         motionHistory.add(motionLevel.toFloat())
@@ -158,20 +161,30 @@ class MainActivity : ComponentActivity() {
                                         isMonitoring = isMonitoring,
                                         useFrontCamera = useFrontCamera,
                                         motionLevel = motionLevel,
-                                        motionHistory = motionHistory,
+                                        audioLevel = audioLevel,
                                         motionSensitivity = motionSensitivity,
+                                        audioSensitivity = audioSensitivity,
+                                        motionHistory = motionHistory,
                                         onSensitivityChange = { sensitivity ->
                                             getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                                 .edit()
                                                 .putFloat("motion_sensitivity", sensitivity)
                                                 .apply()
                                         },
+                                        onAudioSensitivityChange = { sensitivity ->
+                                            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                                                .edit()
+                                                .putFloat("audio_threshold", sensitivity)
+                                                .apply()
+                                            // Tell service to update threshold
+                                            val intent = Intent(this@MainActivity, MonitoringService::class.java)
+                                            startForegroundService(intent)
+                                        },
                                         onToggleCamera = { useFront ->
                                             getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                                 .edit()
                                                 .putBoolean("use_front_camera", useFront)
                                                 .apply()
-                                            // Tell service to restart camera with new side
                                             val intent = Intent(this@MainActivity, MonitoringService::class.java)
                                             startForegroundService(intent)
                                         },

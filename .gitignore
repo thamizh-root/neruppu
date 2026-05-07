@@ -1,14 +1,34 @@
+# Build Artifacts
+.gradle/
+build/
+**/build/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+
+# IDE & Editor Specific
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+*.iws
+*.ipr
+.navigation/
+captures/
+audio_captures/
+.externalNativeBuild
+.cxx/
+local.properties
+
+# OS Specific
 .DS_Store
-/build
-/captures
-/audio_captures
+Thumbs.db
+
+# Logs
+*.log
+
+# Project Specific
 .artifacts

@@ -48,6 +48,9 @@ class MonitoringService : LifecycleService() {
     private val _motionLevel = MutableStateFlow(0.0)
     val motionLevel: StateFlow<Double> = _motionLevel
 
+    private val _audioLevel = MutableStateFlow(0f)
+    val audioLevel: StateFlow<Float> = _audioLevel
+
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring
 
@@ -160,15 +163,39 @@ class MonitoringService : LifecycleService() {
             }.launchIn(serviceScope)
     }
 
+    private var audioBaseline = 0f
+    private val baselineAlpha = 0.05f // EMA factor for smoothing baseline
+
     private fun startMicrophoneMonitoring() {
+        val audioSensitivity = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+            .getFloat("audio_threshold", 800f)
+            
         microphoneJob?.cancel()
         microphoneJob = microphoneDriver.observeNoise()
             .onEach { amplitude ->
+                val ampFloat = amplitude.toFloat()
+                
+                // 1. Update Baseline (Exponential Moving Average)
+                // This establishes the "noise floor" of the room
+                if (audioBaseline == 0f) {
+                    audioBaseline = ampFloat
+                } else if (ampFloat < audioBaseline * 1.5f) { // Only update baseline with quiet sounds
+                    audioBaseline = (baselineAlpha * ampFloat) + (1 - baselineAlpha) * audioBaseline
+                }
+                
+                _audioLevel.value = ampFloat
+
+                // 2. Trigger Check (Relative to Baseline)
+                // Haven standard: trigger = current > baseline + relative_threshold
                 if (_isMonitoring.value) {
-                    if (!isRecordingAudio) {
-                        startAudioRecording()
-                    } else {
-                        lastNoiseTime = System.currentTimeMillis()
+                    if (ampFloat > audioBaseline + audioSensitivity) {
+                        if (!isRecordingAudio) {
+                            Log.i("MonitoringService", "Triggering relative audio recording: $ampFloat > ${audioBaseline + audioSensitivity}")
+                            handleEvent(SensorType.MICROPHONE, "Sudden sound detected: +${(ampFloat - audioBaseline).toInt()} over baseline")
+                            startAudioRecording()
+                        } else {
+                            lastNoiseTime = System.currentTimeMillis()
+                        }
                     }
                 }
             }.launchIn(serviceScope)
@@ -176,40 +203,51 @@ class MonitoringService : LifecycleService() {
 
     private fun startAudioRecording() {
         serviceScope.launch {
-            isRecordingAudio = true
-            lastNoiseTime = System.currentTimeMillis()
-            
-            // Stop monitoring to free up the MIC
-            microphoneJob?.cancel()
-            
-            val audioFile = audioRecorder.startRecording()
-            if (audioFile != null) {
-                Log.d("MonitoringService", "Audio recording started")
+            if (isRecordingAudio) return@launch
+            try {
+                isRecordingAudio = true
+                lastNoiseTime = System.currentTimeMillis()
                 
-                // Monitor for silence
-                while (System.currentTimeMillis() - lastNoiseTime < 5000) {
-                    delay(1000)
-                    val amplitude = audioRecorder.getMaxAmplitude()
-                    if (amplitude > 1000) { // Lowered threshold for silence
-                        lastNoiseTime = System.currentTimeMillis()
+                Log.d("MonitoringService", "Pausing noise observation to record audio...")
+                microphoneJob?.cancel()
+                delay(500) // Increase delay to ensure hardware is released
+                
+                val audioFile = audioRecorder.startRecording()
+                if (audioFile != null) {
+                    Log.i("MonitoringService", "AUDIO RECORDING STARTED: ${audioFile.name}")
+                    
+                    val startTime = System.currentTimeMillis()
+                    // Adaptive stop: stop if quiet for 3s OR max 10s reached
+                    while (System.currentTimeMillis() - lastNoiseTime < 3000 && 
+                           System.currentTimeMillis() - startTime < 10000) {
+                        delay(500)
+                        val amplitude = audioRecorder.getMaxAmplitude()
+                        if (amplitude > 500) { 
+                            lastNoiseTime = System.currentTimeMillis()
+                        }
                     }
-                }
-                
-                val uri = audioRecorder.stopRecording()
-                Log.d("MonitoringService", "Audio recording stopped, saving event")
-                
-                sensorRepository.saveEvent(
-                    Event(
-                        sensorType = SensorType.MICROPHONE,
-                        description = "Noise detected and recorded",
-                        mediaUri = uri?.toString()
+                    
+                    val uri = audioRecorder.stopRecording()
+                    Log.i("MonitoringService", "AUDIO RECORDING STOPPED: $uri")
+                    
+                    // Crucial: Only save if we actually recorded something significant
+                    // to prevent "adding by itself" loops
+                    sensorRepository.saveEvent(
+                        Event(
+                            sensorType = SensorType.MICROPHONE,
+                            description = "Sound detected and recorded",
+                            mediaUri = uri?.toString()
+                        )
                     )
-                )
+                }
+            } catch (e: Exception) {
+                Log.e("MonitoringService", "Audio recording failed", e)
+            } finally {
+                isRecordingAudio = false
+                Log.d("MonitoringService", "Resuming noise observation after 1s cooldown...")
+                delay(1000) // Add a cooldown to let the baseline stabilize
+                startMicrophoneMonitoring()
             }
-            
-            isRecordingAudio = false
-            // Restart monitoring
-            startMicrophoneMonitoring()
         }
     }
 
