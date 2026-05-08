@@ -14,7 +14,9 @@ import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.StateFlow
 import org.havenapp.neruppu.data.camera.analyzer.MotionAnalyzer
+import android.graphics.Bitmap
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -27,6 +29,7 @@ class CameraManager(private val context: Context) {
     private var imageCapture: ImageCapture? = null
     private var preview: Preview? = null
     private var imageAnalysis: ImageAnalysis? = null
+    private var motionAnalyzer: MotionAnalyzer? = null
     var currentSurfaceProvider: Preview.SurfaceProvider? = null
     
     private val mutex = Mutex()
@@ -86,12 +89,13 @@ class CameraManager(private val context: Context) {
         }
     }
 
+    fun getDifferenceMap(): StateFlow<Bitmap?>? = motionAnalyzer?.differenceMap
+
     fun bindCamera(
         lifecycleOwner: LifecycleOwner,
         useFrontCamera: Boolean,
         surfaceProvider: Preview.SurfaceProvider?,
-        onMotionDetected: (Double) -> Unit,
-        onMotionGrid: (FloatArray) -> Unit = {}
+        onMotionDetected: (Double) -> Unit
     ) {
         if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner && currentSurfaceProvider == surfaceProvider) {
             Log.d("CameraManager", "Camera already bound to service lifecycle with same surface. Keeping active.")
@@ -120,12 +124,13 @@ class CameraManager(private val context: Context) {
                     .build()
                 useCases.add(imageCapture!!)
 
+                motionAnalyzer = MotionAnalyzer(onMotionDetected)
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setResolutionSelector(resolutionSelector)
                     .build()
                     .also {
-                        it.setAnalyzer(cameraExecutor, MotionAnalyzer(onMotionDetected, onMotionGrid))
+                        it.setAnalyzer(cameraExecutor, motionAnalyzer!!)
                     }
                 useCases.add(imageAnalysis!!)
 

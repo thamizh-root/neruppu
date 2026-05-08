@@ -170,7 +170,7 @@ class MainActivity : ComponentActivity() {
                                 if (service != null) {
                                     val isMonitoring by service.isMonitoring.collectAsState()
                                     val motionLevel by service.motionLevel.collectAsState()
-                                    val motionGrid by service.motionGrid.collectAsState()
+                                    val differenceMap by service.differenceMap.collectAsState()
                                     val audioLevel by service.audioLevel.collectAsState()
                                     val lightLevel by service.lightLevel.collectAsState()
                                     
@@ -198,7 +198,7 @@ class MainActivity : ComponentActivity() {
                                         audioSensitivity = audioSensitivity,
                                         captureDuration = captureDuration,
                                         motionHistory = motionHistory,
-                                        motionGrid = motionGrid,
+                                        differenceMap = differenceMap,
                                         onSensitivityChange = { sensitivity ->
                                             getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                                 .edit()

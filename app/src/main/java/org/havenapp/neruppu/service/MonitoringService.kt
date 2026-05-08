@@ -1,5 +1,6 @@
 package org.havenapp.neruppu.service
 
+import android.graphics.Bitmap
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -58,8 +59,8 @@ class MonitoringService : LifecycleService() {
     private val _motionLevel = MutableStateFlow(0.0)
     val motionLevel: StateFlow<Double> = _motionLevel
 
-    private val _motionGrid = MutableStateFlow(FloatArray(0))
-    val motionGrid: StateFlow<FloatArray> = _motionGrid
+    private val _differenceMap = MutableStateFlow<Bitmap?>(null)
+    val differenceMap: StateFlow<Bitmap?> = _differenceMap
 
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel
@@ -234,15 +235,13 @@ class MonitoringService : LifecycleService() {
             surfaceProvider = if (_uiActive.value) cameraManager.currentSurfaceProvider else null,
             onMotionDetected = { level ->
                 _motionLevel.value = level
+                _differenceMap.value = cameraManager.getDifferenceMap()?.value
                 if (_isMonitoring.value && level > sensitivity.toDouble()) {
                     Log.d("MonitoringService", "THRESHOLD EXCEEDED: $level")
                     serviceScope.launch {
                         handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
                     }
                 }
-            },
-            onMotionGrid = { grid ->
-                _motionGrid.value = grid
             }
         )
 

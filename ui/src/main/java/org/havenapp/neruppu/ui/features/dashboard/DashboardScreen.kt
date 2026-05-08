@@ -1,5 +1,10 @@
 package org.havenapp.neruppu.ui.features.dashboard
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -37,7 +42,7 @@ fun DashboardScreen(
     audioSensitivity: Float,
     captureDuration: Float = 5f,
     motionHistory: List<Float>,
-    motionGrid: FloatArray = FloatArray(0),
+    differenceMap: Bitmap? = null,
     lightLevel: Float = 0f,
     onToggleMonitoring: () -> Unit,
     onToggleCamera: (Boolean) -> Unit,
@@ -80,27 +85,14 @@ fun DashboardScreen(
                 update = { }
             )
             
-            // HAVEN STYLE MOTION GRID OVERLAY
-            if (!stealthMode && motionGrid.isNotEmpty()) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val cols = 20
-                    val rows = 15
-                    val cellWidth = size.width / cols
-                    val cellHeight = size.height / rows
-                    
-                    for (i in motionGrid.indices) {
-                        val intensity = motionGrid[i]
-                        if (intensity > 0.1f) {
-                            val r = i / cols
-                            val c = i % cols
-                            drawRect(
-                                color = Color.Yellow.copy(alpha = (intensity * 0.5f).coerceIn(0f, 0.8f)),
-                                topLeft = androidx.compose.ui.geometry.Offset(c * cellWidth, r * cellHeight),
-                                size = androidx.compose.ui.geometry.Size(cellWidth, cellHeight)
-                            )
-                        }
-                    }
-                }
+            // DIFFERENCE MAP HEATMAP OVERLAY
+            if (!stealthMode && differenceMap != null) {
+                Image(
+                    bitmap = differenceMap.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().alpha(0.5f),
+                    contentScale = ContentScale.FillBounds
+                )
             }
 
             // Motion Pulse Overlay (Transparent) - keep it as a subtle flash
