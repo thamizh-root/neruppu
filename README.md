@@ -1,6 +1,10 @@
-# Neruppu - Smart Security & Environmental Monitoring
+# Neruppu - Turn any android device into a guardian.
 
 Neruppu is a comprehensive Android security application designed to turn your device into a smart monitoring station. Using a variety of on-device sensors, Neruppu detects environmental changes and records events with media evidence.
+
+<div align="center">
+  <img src="neruppu_wallpaper.svg" alt="Neruppu" />
+</div>
 
 [![Android API](https://img.shields.io/badge/API-26%2B-brightgreen.svg)](https://android-arsenal.com/api?level=26)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue.svg)](https://kotlinlang.org)
