@@ -20,38 +20,14 @@ Neruppu is a comprehensive Android security application designed to turn your de
 - **Adaptive Sensitivity**: User-configurable thresholds for motion and sound to minimize false positives.
 - **Real-time Dashboard**: Live visualization of sensor data and system status built with Jetpack Compose.
 
-## Tech Stack
-
-- **UI**: [Jetpack Compose](https://developer.android.com/jetpack/compose) for a modern, reactive UI.
-- **Architecture**: Clean Architecture with a Multi-Module setup.
-- **Dependency Injection**: [Hilt](https://dagger.dev/hilt/) for clean and scalable DI.
-- **Camera**: [CameraX](https://developer.android.com/training/camerax) for motion analysis and photo capture.
-- **Database**: [Room](https://developer.android.com/training/data-storage/room) for persistent local storage of events.
-- **Concurrency**: Kotlin [Coroutines](https://kotlinlang.org/docs/coroutines-overview.html) & [Flow](https://kotlinlang.org/docs/flow.html) for asynchronous processing.
-- **Background Work**: [Foreground Services](https://developer.android.com/guide/components/foreground-services) for reliable background monitoring.
-
 ## Project Structure
 
 The project follows a modular Clean Architecture pattern:
-
 - `:app` - Entry point, Foreground Service, and Dependency Injection setup.
 - `:domain` - Core business logic, models, and repository interfaces (Pure Kotlin).
 - `:data` - Repository implementations, Room database, and hardware drivers (Camera, Sensors).
 - `:ui` - Common UI components and feature-specific Compose screens.
 - `:core` - Shared utilities, theme definitions, and base classes.
-
-## Getting Started
-
-### Prerequisites
-- Android Studio Iguana (2023.2.1) or newer.
-- Android SDK 34.
-- A physical Android device (recommended for sensor testing).
-
-### Installation
-1. Clone the repository.
-2. Open the project in Android Studio.
-3. Sync Project with Gradle Files.
-4. Run the `:app` module on your device.
 
 ## 📄 License
 
