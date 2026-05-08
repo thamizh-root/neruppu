@@ -1,0 +1,180 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Neruppu — Turn any device into a guardian.</title>
+  <desc>Desktop wallpaper and README banner for Neruppu Android project.</desc>
+
+  <defs>
+    <clipPath id="lc"><rect x="0" y="0" width="640" height="640"/></clipPath>
+    <clipPath id="rc"><rect x="640" y="0" width="640" height="640"/></clipPath>
+
+    <pattern id="grid" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#1e1e1e" stroke-width="0.6"/>
+    </pattern>
+
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset="0%"   stop-color="#0d0d0d" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.85"/>
+    </radialGradient>
+
+    <radialGradient id="glow" cx="50%" cy="50%" r="40%">
+      <stop offset="0%"   stop-color="#2a2a2a" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0d0d0d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Base background -->
+  <rect width="1280" height="640" fill="#0d0d0d"/>
+
+  <!-- Grid texture across full canvas -->
+  <rect width="1280" height="640" fill="url(#grid)"/>
+
+  <!-- Radial glow behind logo -->
+  <ellipse cx="640" cy="300" rx="380" ry="300" fill="url(#glow)"/>
+
+  <!-- Vignette edges -->
+  <rect width="1280" height="640" fill="url(#vignette)"/>
+
+  <!-- Horizontal rule lines (atmosphere) -->
+  <line x1="0" y1="100" x2="1280" y2="100" stroke="#1a1a1a" stroke-width="0.8"/>
+  <line x1="0" y1="540" x2="1280" y2="540" stroke="#1a1a1a" stroke-width="0.8"/>
+
+  <!-- Corner brackets -->
+  <line x1="48" y1="48" x2="110" y2="48"  stroke="#2e2e2e" stroke-width="1.2"/>
+  <line x1="48" y1="48" x2="48"  y2="110" stroke="#2e2e2e" stroke-width="1.2"/>
+
+  <line x1="1232" y1="48" x2="1170" y2="48"  stroke="#2e2e2e" stroke-width="1.2"/>
+  <line x1="1232" y1="48" x2="1232" y2="110" stroke="#2e2e2e" stroke-width="1.2"/>
+
+  <line x1="48"   y1="592" x2="110"  y2="592" stroke="#2e2e2e" stroke-width="1.2"/>
+  <line x1="48"   y1="592" x2="48"   y2="530" stroke="#2e2e2e" stroke-width="1.2"/>
+
+  <line x1="1232" y1="592" x2="1170" y2="592" stroke="#2e2e2e" stroke-width="1.2"/>
+  <line x1="1232" y1="592" x2="1232" y2="530" stroke="#2e2e2e" stroke-width="1.2"/>
+
+  <!-- ══════════════════════════════
+       LOGO — centered at (640, 278)
+       scaled 1.15x from original 480px
+  ══════════════════════════════ -->
+  <g transform="translate(640,278) scale(1.15)">
+
+    <!-- LEFT HALF -->
+    <g clip-path="url(#lc)">
+      <g transform="translate(-640,-278)">
+        <g transform="translate(640,278)">
+          <!-- Gear body -->
+          <path fill="#efefef" d="
+            M 0,-148 L 22,-138 L 28,-118
+            L 52,-118 L 58,-138
+            L 80,-118 L 76,-96
+            L 118,-55 L 138,-29
+            L 148,0
+            L 138,29 L 118,55
+            L 76,96 L 80,118
+            L 58,138 L 52,118
+            L 28,118 L 22,138
+            L 0,148
+            L -22,138 L -28,118
+            L -52,118 L -58,138
+            L -80,118 L -76,96
+            L -118,55 L -138,29
+            L -148,0
+            L -138,-29 L -118,-55
+            L -76,-96 L -80,-118
+            L -58,-138 L -52,-118
+            L -28,-118 L -22,-138 Z"/>
+          <!-- Inner ring dark fill -->
+          <circle r="106" fill="#0d0d0d"/>
+          <circle r="106" fill="none" stroke="#efefef" stroke-width="2.5"/>
+          <circle r="94"  fill="none" stroke="#efefef" stroke-width="0.8" opacity="0.25"/>
+          <circle r="82"  fill="none" stroke="#efefef" stroke-width="0.6" opacity="0.12"/>
+          <!-- Eye sclera -->
+          <ellipse rx="68" ry="42" fill="#181818"/>
+          <!-- Eye lids -->
+          <path d="M -68,0 Q 0,-44 68,0" fill="none" stroke="#efefef" stroke-width="2"/>
+          <path d="M -68,0 Q 0,44 68,0"  fill="none" stroke="#efefef" stroke-width="2"/>
+          <!-- Iris -->
+          <circle r="36" fill="#222222"/>
+          <circle r="36" fill="none" stroke="#efefef" stroke-width="0.8" opacity="0.35"/>
+          <circle r="30" fill="none" stroke="#efefef" stroke-width="0.5" opacity="0.18"/>
+          <!-- Pupil -->
+          <circle r="20" fill="#efefef"/>
+          <circle cx="-6" cy="-6" r="5" fill="#0d0d0d" opacity="0.45"/>
+          <circle cx="-7" cy="-7" r="2" fill="#0d0d0d" opacity="0.3"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- RIGHT HALF -->
+    <g clip-path="url(#rc)">
+      <g transform="translate(-640,-278)">
+        <g transform="translate(640,278)">
+          <!-- Gear outline -->
+          <path fill="none" stroke="#efefef" stroke-width="1.2" d="
+            M 0,-148 L 22,-138 L 28,-118
+            L 52,-118 L 58,-138
+            L 80,-118 L 76,-96
+            L 118,-55 L 138,-29
+            L 148,0
+            L 138,29 L 118,55
+            L 76,96 L 80,118
+            L 58,138 L 52,118
+            L 28,118 L 22,138
+            L 0,148"/>
+          <!-- Reference circles -->
+          <circle r="148" fill="none" stroke="#efefef" stroke-width="0.5" stroke-dasharray="4 4" opacity="0.18"/>
+          <circle r="106" fill="none" stroke="#efefef" stroke-width="1"   opacity="0.65"/>
+          <circle r="94"  fill="none" stroke="#efefef" stroke-width="0.5" opacity="0.3"/>
+          <circle r="68"  fill="none" stroke="#efefef" stroke-width="0.7" stroke-dasharray="5 3" opacity="0.4"/>
+          <circle r="36"  fill="none" stroke="#efefef" stroke-width="0.9" opacity="0.55"/>
+          <circle r="20"  fill="none" stroke="#efefef" stroke-width="1.2" opacity="0.65"/>
+          <!-- Eye ellipse -->
+          <ellipse rx="68" ry="42" fill="none" stroke="#efefef" stroke-width="0.9" opacity="0.55"/>
+          <!-- Lid curves -->
+          <path d="M -68,0 Q 0,-44 68,0" fill="none" stroke="#efefef" stroke-width="0.7" opacity="0.35"/>
+          <path d="M -68,0 Q 0,44 68,0"  fill="none" stroke="#efefef" stroke-width="0.7" opacity="0.35"/>
+          <!-- Crosshair -->
+          <circle r="3"  fill="none" stroke="#efefef" stroke-width="0.9" opacity="0.55"/>
+          <line x1="-10" y1="0" x2="-3" y2="0" stroke="#efefef" stroke-width="0.7" opacity="0.55"/>
+          <line x1="3"   y1="0" x2="10" y2="0" stroke="#efefef" stroke-width="0.7" opacity="0.55"/>
+          <line x1="0" y1="-10" x2="0" y2="-3" stroke="#efefef" stroke-width="0.7" opacity="0.55"/>
+          <line x1="0"   y1="3" x2="0" y2="10" stroke="#efefef" stroke-width="0.7" opacity="0.55"/>
+          <!-- Dimension ticks -->
+          <line x1="0" y1="-148" x2="0"   y2="-168" stroke="#555" stroke-width="0.6"/>
+          <line x1="0" y1="-168" x2="155" y2="-168" stroke="#555" stroke-width="0.6"/>
+          <line x1="0" y1="-106" x2="0"   y2="-122" stroke="#555" stroke-width="0.5" opacity="0.8"/>
+          <line x1="0" y1="-122" x2="155" y2="-122" stroke="#555" stroke-width="0.5" opacity="0.8"/>
+          <line x1="68" y1="0"  x2="68"  y2="76"  stroke="#555" stroke-width="0.5" opacity="0.8"/>
+          <line x1="0"  y1="76" x2="68"  y2="76"  stroke="#555" stroke-width="0.5" opacity="0.8"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Centre divider -->
+    <line x1="0" y1="-185" x2="0" y2="185" stroke="#efefef" stroke-width="1.2" opacity="0.75"/>
+
+  </g>
+
+  <!-- ══════════════════════════════
+       WORDMARK
+  ══════════════════════════════ -->
+  <text
+    x="640" y="470"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="64"
+    font-weight="700"
+    letter-spacing="20"
+    fill="#efefef">neruppu</text>
+
+  <!-- Thin rule under name -->
+  <line x1="440" y1="488" x2="840" y2="488" stroke="#333" stroke-width="0.8"/>
+
+  <!-- Slogan -->
+  <text
+    x="640" y="518"
+    text-anchor="middle"
+    font-family="'Courier New', Courier, monospace"
+    font-size="15"
+    letter-spacing="4"
+    fill="#666666">Turn any device into a guardian.</text>
+
+</svg>
