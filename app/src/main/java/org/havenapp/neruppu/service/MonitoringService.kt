@@ -20,17 +20,19 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleService
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.havenapp.neruppu.data.audio.AudioRecorder
 import org.havenapp.neruppu.data.camera.CameraManager
-import org.havenapp.neruppu.data.sensors.AccelerometerDriver
-import org.havenapp.neruppu.data.sensors.LightSensorDriver
-import org.havenapp.neruppu.data.sensors.MicrophoneDriver
+import org.havenapp.neruppu.data.sensors.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import org.havenapp.neruppu.domain.repository.SensorRepository
+import org.havenapp.neruppu.worker.EventNotificationWorker
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -50,6 +52,7 @@ class MonitoringService : LifecycleService() {
     private lateinit var accelerometerDriver: AccelerometerDriver
     private lateinit var microphoneDriver: MicrophoneDriver
     private lateinit var lightSensorDriver: LightSensorDriver
+    private lateinit var significantMotionDriver: SignificantMotionDriver
     private lateinit var audioRecorder: AudioRecorder
 
     private val _motionLevel = MutableStateFlow(0.0)
@@ -60,6 +63,9 @@ class MonitoringService : LifecycleService() {
 
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel
+
+    private val _lightLevel = MutableStateFlow(0f)
+    val lightLevel: StateFlow<Float> = _lightLevel
 
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring
@@ -117,6 +123,7 @@ class MonitoringService : LifecycleService() {
         accelerometerDriver = AccelerometerDriver(this)
         microphoneDriver = MicrophoneDriver()
         lightSensorDriver = LightSensorDriver(this)
+        significantMotionDriver = SignificantMotionDriver(this)
         audioRecorder = AudioRecorder(this)
         
         getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
@@ -261,6 +268,7 @@ class MonitoringService : LifecycleService() {
             val lightFlow = lightSensorDriver.observeLightChanges()
                 .conflate()
                 .onEach { lux ->
+                    _lightLevel.value = lux
                     if (_isMonitoring.value) {
                         Log.d("MonitoringService", "Light event received")
                         serviceScope.launch {
@@ -271,6 +279,15 @@ class MonitoringService : LifecycleService() {
 
             launch { accelerometerFlow.collect() }
             launch { lightFlow.collect() }
+            
+            // Significant Motion Monitoring (Ultra-low power wakeups)
+            launch {
+                significantMotionDriver.observeSignificantMotion().collect {
+                    if (_isMonitoring.value) {
+                        handleEvent(SensorType.ACCELEROMETER, "Significant motion detected (hardware trigger)")
+                    }
+                }
+            }
             
             startMicrophoneMonitoring()
         }
@@ -292,7 +309,7 @@ class MonitoringService : LifecycleService() {
                     _audioLevel.value = amplitude.toFloat()
                     
                     if (audioBaseline == 0f) audioBaseline = amplitude.toFloat()
-                    audioBaseline = (1 - baselineAlpha) * audioBaseline + baselineAlpha * amplitude
+                    audioBaseline = (1f - baselineAlpha) * audioBaseline + baselineAlpha * amplitude
 
                     if (_isMonitoring.value && !isRecordingAudio && amplitude > audioBaseline + threshold) {
                         Log.i("MonitoringService", "AUDIO TRIGGER: $amplitude (Baseline: $audioBaseline, Threshold: $threshold)")
@@ -374,6 +391,19 @@ class MonitoringService : LifecycleService() {
             mediaUri = mediaUri,
         )
         val id = sensorRepository.saveEvent(event)
+        
+        // Schedule deferred notification via WorkManager (Best Practice)
+        val workData = Data.Builder()
+            .putString("event_type", type.name)
+            .putString("description", description)
+            .build()
+        
+        val notificationWork = OneTimeWorkRequestBuilder<EventNotificationWorker>()
+            .setInputData(workData)
+            .build()
+            
+        WorkManager.getInstance(this).enqueue(notificationWork)
+
         Log.i("MonitoringService", "EVENT SAVED TO DATABASE: $type (ID: $id)")
         return id
     }

@@ -38,6 +38,7 @@ fun DashboardScreen(
     captureDuration: Float = 5f,
     motionHistory: List<Float>,
     motionGrid: FloatArray = FloatArray(0),
+    lightLevel: Float = 0f,
     onToggleMonitoring: () -> Unit,
     onToggleCamera: (Boolean) -> Unit,
     onToggleStealthMode: (Boolean) -> Unit,
@@ -51,6 +52,15 @@ fun DashboardScreen(
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // LAYER 0: Full Screen Camera Background
         Box(modifier = Modifier.fillMaxSize()) {
+            if (!stealthMode) {
+                PixelPerfectDashboard(
+                    modifier = Modifier.fillMaxSize(),
+                    motionLevel = motionLevel.toFloat(),
+                    audioLevel = (audioLevel / 5000f).coerceIn(0f, 1f),
+                    lightLevel = (lightLevel / 1000f).coerceIn(0f, 1f)
+                )
+            }
+
             var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
             
             LaunchedEffect(previewViewRef, lifecycleOwner, useFrontCamera) {

@@ -97,10 +97,14 @@ class MainActivity : ComponentActivity() {
     private fun requestIgnoreBatteryOptimizations() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Could not request battery optimization whitelist", e)
             }
-            startActivity(intent)
         }
     }
 
@@ -168,6 +172,7 @@ class MainActivity : ComponentActivity() {
                                     val motionLevel by service.motionLevel.collectAsState()
                                     val motionGrid by service.motionGrid.collectAsState()
                                     val audioLevel by service.audioLevel.collectAsState()
+                                    val lightLevel by service.lightLevel.collectAsState()
                                     
                                     val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
                                     val useFrontCamera = prefs.getBoolean("use_front_camera", false)
@@ -188,6 +193,7 @@ class MainActivity : ComponentActivity() {
                                         stealthMode = stealthMode,
                                         motionLevel = motionLevel,
                                         audioLevel = audioLevel,
+                                        lightLevel = lightLevel,
                                         motionSensitivity = motionSensitivity,
                                         audioSensitivity = audioSensitivity,
                                         captureDuration = captureDuration,
@@ -262,9 +268,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             1 -> {
-                                val events by logsViewModel.events.collectAsState()
                                 LogsScreen(
-                                    events = events,
+                                    events = logsViewModel.events,
                                     onClearLogs = { logsViewModel.clearLogs() }
                                 )
                             }

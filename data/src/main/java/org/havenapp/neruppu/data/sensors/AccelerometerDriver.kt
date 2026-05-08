@@ -35,13 +35,19 @@ class AccelerometerDriver(context: Context) {
     }
 
     fun observeMotion(threshold: Float = 12f): Flow<Float> = callbackFlow {
-        Log.d("AccelerometerDriver", "Registering accelerometer listener")
+        Log.d("AccelerometerDriver", "Registering accelerometer listener (Batched)")
         val listener = MotionListener(threshold) { magnitude ->
             Log.i("AccelerometerDriver", "Motion detected! Magnitude: $magnitude")
             trySend(magnitude)
         }
 
-        val registered = sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+        // Register with batching (500ms latency) to save battery
+        val registered = sensorManager.registerListener(
+            listener, 
+            accelerometer, 
+            SensorManager.SENSOR_DELAY_UI,
+            500000 // 500ms maxReportLatencyUs
+        )
         Log.d("AccelerometerDriver", "Sensor listener registered: $registered")
 
         if (!registered) {

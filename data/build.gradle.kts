@@ -6,10 +6,11 @@ plugins {
 
 android {
     namespace = "org.havenapp.neruppu.data"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
+        targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
     }
@@ -37,6 +38,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     api(libs.androidx.room.runtime)
     api(libs.androidx.room.ktx)
+    api(libs.androidx.room.paging)
+    api(libs.androidx.paging.runtime)
     kapt(libs.androidx.room.compiler)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

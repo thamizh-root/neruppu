@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "org.havenapp.neruppu"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "org.havenapp.neruppu"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -24,7 +24,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -40,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
@@ -74,6 +76,9 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.extensions)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
     
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
@@ -89,4 +94,5 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    debugImplementation(libs.leakcanary.android)
 }

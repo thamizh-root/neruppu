@@ -1,5 +1,6 @@
 package org.havenapp.neruppu.data.local.dao
 
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -10,7 +11,7 @@ import org.havenapp.neruppu.data.local.entity.EventEntity
 @Dao
 interface EventDao {
     @Query("SELECT * FROM events ORDER BY timestamp DESC")
-    fun getEvents(): Flow<List<EventEntity>>
+    fun getEventsPaging(): PagingSource<Int, EventEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: EventEntity): Long

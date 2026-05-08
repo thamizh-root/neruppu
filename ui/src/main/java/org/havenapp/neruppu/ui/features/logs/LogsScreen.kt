@@ -8,7 +8,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -25,7 +24,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.flow.Flow
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import java.io.File
@@ -35,9 +38,11 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogsScreen(
-    events: List<Event>,
+    events: Flow<PagingData<Event>>,
     onClearLogs: () -> Unit
 ) {
+    val pagingItems = events.collectAsLazyPagingItems()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -57,8 +62,29 @@ fun LogsScreen(
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(events) { event ->
-                EventItem(event)
+            items(pagingItems.itemCount) { index ->
+                pagingItems[index]?.let { event ->
+                    EventItem(event)
+                }
+            }
+
+            pagingItems.apply {
+                when {
+                    loadState.refresh is LoadState.Loading -> {
+                        item {
+                            Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+                    loadState.append is LoadState.Loading -> {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+                }
             }
         }
     }

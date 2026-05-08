@@ -1,5 +1,9 @@
 package org.havenapp.neruppu.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.havenapp.neruppu.data.local.dao.EventDao
@@ -11,9 +15,15 @@ import org.havenapp.neruppu.domain.repository.SensorRepository
 class SensorRepositoryImpl(
     private val eventDao: EventDao
 ) : SensorRepository {
-    override fun getEvents(): Flow<List<Event>> {
-        return eventDao.getEvents().map { entities ->
-            entities.map { it.toDomain() }
+    override fun getEvents(): Flow<PagingData<Event>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = 20,
+                enablePlaceholders = false
+            ),
+            pagingSourceFactory = { eventDao.getEventsPaging() }
+        ).flow.map { pagingData ->
+            pagingData.map { it.toDomain() }
         }
     }
 

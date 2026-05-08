@@ -14,25 +14,31 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 class MicrophoneDriver {
-    private val sampleRate = 44100
+    private val sampleRate = 16000 // Reduced from 44100 for battery optimization
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
     private val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
     @SuppressLint("MissingPermission")
     fun observeNoise(): Flow<Int> = callbackFlow {
-        val recorder = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            sampleRate,
-            channelConfig,
-            audioFormat,
-            bufferSize,
-        )
+        val recorder = try {
+            AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                channelConfig,
+                audioFormat,
+                bufferSize,
+            )
+        } catch (e: Exception) {
+            Log.e("MicrophoneDriver", "Failed to create AudioRecord", e)
+            close(e)
+            return@callbackFlow
+        }
 
         val buffer = ShortArray(bufferSize)
         try {
             recorder.startRecording()
-            Log.d("MicrophoneDriver", "Started noise observation (Adaptive Baseline Mode)")
+            Log.d("MicrophoneDriver", "Started noise observation (16kHz optimized)")
         } catch (e: Exception) {
             Log.e("MicrophoneDriver", "Failed to start recording", e)
             close(e)
@@ -43,16 +49,13 @@ class MicrophoneDriver {
             while (isActive) {
                 val read = recorder.read(buffer, 0, bufferSize)
                 if (read > 0) {
-                    var maxAmplitude = 0
+                    var sum = 0L
                     for (i in 0 until read) {
-                        val amplitude = abs(buffer[i].toInt())
-                        if (amplitude > maxAmplitude) {
-                            maxAmplitude = amplitude
-                        }
+                        sum += abs(buffer[i].toInt())
                     }
-                    // In adaptive mode, we send ALL amplitudes to the Service
-                    // The Service will handle the baseline calculation and thresholding
-                    trySend(maxAmplitude)
+                    // Average amplitude is more stable and less CPU intensive than Max for large buffers
+                    val avgAmplitude = (sum / read).toInt()
+                    trySend(avgAmplitude)
                 }
             }
         }

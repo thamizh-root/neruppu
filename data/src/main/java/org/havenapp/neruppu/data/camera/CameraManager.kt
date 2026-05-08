@@ -3,9 +3,12 @@ package org.havenapp.neruppu.data.camera
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.*
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -101,15 +104,25 @@ class CameraManager(private val context: Context) {
                 
                 val useCases = mutableListOf<androidx.camera.core.UseCase>()
 
+                val resolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(640, 480),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER
+                        )
+                    )
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .build()
+
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setResolutionSelector(resolutionSelector)
                     .build()
                 useCases.add(imageCapture!!)
 
-                @Suppress("DEPRECATION")
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setTargetResolution(android.util.Size(640, 480))
+                    .setResolutionSelector(resolutionSelector)
                     .build()
                     .also {
                         it.setAnalyzer(cameraExecutor, MotionAnalyzer(onMotionDetected, onMotionGrid))
@@ -117,9 +130,11 @@ class CameraManager(private val context: Context) {
                 useCases.add(imageAnalysis!!)
 
                 if (surfaceProvider != null) {
-                    preview = Preview.Builder().build().apply {
-                        setSurfaceProvider(surfaceProvider)
-                    }
+                    preview = Preview.Builder()
+                        .setResolutionSelector(resolutionSelector)
+                        .build().apply {
+                            setSurfaceProvider(surfaceProvider)
+                        }
                     useCases.add(preview!!)
                 } else {
                     preview = null
