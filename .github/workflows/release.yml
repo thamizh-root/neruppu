@@ -22,8 +22,11 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
       - name: Build Release APK
-        run: chmod +x gradlew && ./gradlew :app:assembleRelease
+        run: ./gradlew :app:assembleRelease
 
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
@@ -34,6 +37,8 @@ jobs:
           alias: ${{ secrets.ALIAS }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
 
       - name: Generate Release Tag
         id: tag
