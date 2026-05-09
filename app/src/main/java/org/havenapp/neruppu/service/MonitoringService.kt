@@ -72,6 +72,10 @@ class MonitoringService : LifecycleService() {
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring
 
+    private val notificationManager by lazy {
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+
     inner class LocalBinder : Binder() {
         fun getService(): MonitoringService = this@MonitoringService
     }
@@ -112,15 +116,7 @@ class MonitoringService : LifecycleService() {
         })
 
         createNotificationChannel()
-
-        // 1. Immediately claim foreground status to secure sensor access
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or 
-                       ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            startForeground(NOTIFICATION_ID, createNotification(), type)
-        } else {
-            startForeground(NOTIFICATION_ID, createNotification())
-        }
+        updateNotification()
 
         accelerometerDriver = AccelerometerDriver(this)
         microphoneDriver = MicrophoneDriver()
@@ -162,7 +158,9 @@ class MonitoringService : LifecycleService() {
     }
 
     private fun startMonitoringIfNeeded() {
-        // Only start sensors if we are monitoring or if someone is listening (e.g. Dashboard)
+        // We need the service to be "active" (startMonitoring) if:
+        // 1. We are actually monitoring (background or foreground)
+        // 2. The UI is active and needs a preview/sensor levels
         if (_isMonitoring.value || _uiActive.value) {
             startMonitoring()
         } else {
@@ -173,7 +171,11 @@ class MonitoringService : LifecycleService() {
     private val _uiActive = MutableStateFlow(false)
     fun setUiActive(active: Boolean) {
         _uiActive.value = active
-        startMonitoringIfNeeded()
+        if (active) {
+            startMonitoring()
+        } else {
+            startMonitoringIfNeeded()
+        }
     }
 
 
@@ -205,19 +207,32 @@ class MonitoringService : LifecycleService() {
         _isMonitoring.value = !_isMonitoring.value
         if (_isMonitoring.value) {
             Log.d("MonitoringService", "Monitoring ACTIVATED")
+            // Ensure service is running as foreground when monitoring is ON
+            updateNotification()
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
+            // When monitoring is OFF, we might still be in foreground if UI is active
+            // but updateNotification will handle the startForeground/stopForeground logic
+            updateNotification()
         }
         startMonitoringIfNeeded()
     }
 
     private fun stopMonitoring() {
-        Log.d("MonitoringService", "Stopping Sensors...")
-        cameraManager.unbind()
+        Log.d("MonitoringService", "stopMonitoring() called - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}")
+        
+        // ONLY unbind camera if NO ONE needs it (not monitoring AND UI is not visible)
+        if (!_isMonitoring.value && !_uiActive.value) {
+            Log.d("MonitoringService", "Releasing camera system (Idle & UI hidden)")
+            cameraManager.unbind()
+        } else {
+            Log.d("MonitoringService", "Keeping camera bound for Preview/UI")
+        }
+
         microphoneJob?.cancel()
         microphoneJob = null
-        // Also stop other sensor collectors if they are heavy
-        // For now, these flows will just be collected if active
+        sensorsJob?.cancel()
+        sensorsJob = null
     }
 
 
@@ -229,67 +244,72 @@ class MonitoringService : LifecycleService() {
         val sensitivity = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .getFloat("motion_sensitivity", 15f)
 
-        // Camera Motion Monitoring
-        cameraManager.bindCamera(
-            lifecycleOwner = this,
-            useFrontCamera = useFront,
-            surfaceProvider = if (_uiActive.value) cameraManager.currentSurfaceProvider else null,
-            onMotionDetected = { level ->
-                _motionLevel.value = level
-                _differenceMap.value = cameraManager.getDifferenceMap()?.value
-                if (_isMonitoring.value && level > sensitivity.toDouble()) {
-                    Log.d("MonitoringService", "THRESHOLD EXCEEDED: $level")
-                    serviceScope.launch {
-                        handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
+        // Always bind camera if we are either Monitoring OR UI is active
+        if (_isMonitoring.value || _uiActive.value) {
+            cameraManager.bindCamera(
+                lifecycleOwner = this,
+                useFrontCamera = useFront,
+                surfaceProvider = cameraManager.currentSurfaceProvider,
+                onMotionDetected = { level ->
+                    _motionLevel.value = level
+                    _differenceMap.value = cameraManager.getDifferenceMap()?.value
+                    if (_isMonitoring.value && level > sensitivity.toDouble()) {
+                        Log.d("MonitoringService", "THRESHOLD EXCEEDED: $level")
+                        serviceScope.launch {
+                            handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
+                        }
                     }
                 }
-            }
-        )
+            )
+        }
 
         if (sensorsJob?.isActive == true) {
             Log.d("MonitoringService", "Sensors already running. Skipping re-initialization.")
             return
         }
+        
+        // Start sensor data flows only if we are monitoring OR UI is active (for real-time dashboard updates)
+        if (_isMonitoring.value || _uiActive.value) {
+            sensorsJob = serviceScope.launch {
+                Log.d("MonitoringService", "Launching sensor flows...")
+                
+                val accelerometerFlow = accelerometerDriver.observeMotion()
+                    .conflate()
+                    .onEach { magnitude ->
+                        if (_isMonitoring.value) {
+                            Log.d("MonitoringService", "Motion event received")
+                            serviceScope.launch {
+                                handleEvent(SensorType.ACCELEROMETER, "Physical motion detected: Magnitude $magnitude")
+                            }
+                        }
+                    }
 
-        sensorsJob = serviceScope.launch {
-            Log.d("MonitoringService", "Launching sensor flows...")
-            
-            val accelerometerFlow = accelerometerDriver.observeMotion()
-                .conflate()
-                .onEach { magnitude ->
-                    if (_isMonitoring.value) {
-                        Log.d("MonitoringService", "Motion event received")
-                        serviceScope.launch {
-                            handleEvent(SensorType.ACCELEROMETER, "Physical motion detected: Magnitude $magnitude")
+                val lightFlow = lightSensorDriver.observeLightChanges()
+                    .conflate()
+                    .onEach { lux ->
+                        _lightLevel.value = lux
+                        if (_isMonitoring.value) {
+                            Log.d("MonitoringService", "Light event received")
+                            serviceScope.launch {
+                                handleEvent(SensorType.LIGHT, "Light change detected: $lux lux")
+                            }
+                        }
+                    }
+
+                launch { accelerometerFlow.collect() }
+                launch { lightFlow.collect() }
+                
+                // Significant Motion Monitoring (Ultra-low power wakeups)
+                launch {
+                    significantMotionDriver.observeSignificantMotion().collect {
+                        if (_isMonitoring.value) {
+                            handleEvent(SensorType.ACCELEROMETER, "Significant motion detected (hardware trigger)")
                         }
                     }
                 }
-
-            val lightFlow = lightSensorDriver.observeLightChanges()
-                .conflate()
-                .onEach { lux ->
-                    _lightLevel.value = lux
-                    if (_isMonitoring.value) {
-                        Log.d("MonitoringService", "Light event received")
-                        serviceScope.launch {
-                            handleEvent(SensorType.LIGHT, "Light change detected: $lux lux")
-                        }
-                    }
-                }
-
-            launch { accelerometerFlow.collect() }
-            launch { lightFlow.collect() }
-            
-            // Significant Motion Monitoring (Ultra-low power wakeups)
-            launch {
-                significantMotionDriver.observeSignificantMotion().collect {
-                    if (_isMonitoring.value) {
-                        handleEvent(SensorType.ACCELEROMETER, "Significant motion detected (hardware trigger)")
-                    }
-                }
+                
+                startMicrophoneMonitoring()
             }
-            
-            startMicrophoneMonitoring()
         }
     }
 
@@ -418,6 +438,23 @@ class MonitoringService : LifecycleService() {
         manager.createNotificationChannel(channel)
     }
 
+    private fun updateNotification() {
+        val notification = createNotification()
+        if (_isMonitoring.value) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                           ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                startForeground(NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } else {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            // Still show a simple notification if UI is active? 
+            // Or just remove it. Let's remove it for now when not monitoring.
+        }
+    }
+
     private fun createNotification(): Notification {
         val stopIntent = Intent(this, MonitoringService::class.java).apply {
             action = ACTION_STOP_SERVICE
@@ -426,12 +463,18 @@ class MonitoringService : LifecycleService() {
             this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
+        val contentText = if (_isMonitoring.value) {
+            "System is active and monitoring sensors"
+        } else {
+            "System is idle. Tap START to begin monitoring."
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Neruppu Monitoring")
-            .setContentText("System is active and monitoring sensors")
+            .setContentTitle("Neruppu Security")
+            .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_stat_security)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Service", stopPendingIntent)
             .build()
     }
 

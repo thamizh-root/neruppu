@@ -1,0 +1,12 @@
+<svg width="512" height="512" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <!-- The Protective Shield (Neruppu Orange) -->
+    <path 
+        fill="#E8520A" 
+        d="M12,2L4,5V11C4,16.55 7.84,21.74 12,23C16.16,21.74 20,16.55 20,11V5L12,2Z" 
+    />
+    <!-- The Dynamic Flame Crown (White) -->
+    <path 
+        fill="#FFFFFF" 
+        d="M12,5L14.5,9.5L13,11L15,13L12,18L9,13L11,11L9.5,9.5L12,5Z" 
+    />
+</svg>
