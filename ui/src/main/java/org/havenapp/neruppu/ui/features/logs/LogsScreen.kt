@@ -3,37 +3,44 @@ package org.havenapp.neruppu.ui.features.logs
 import android.media.MediaPlayer
 import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import org.havenapp.neruppu.core.ui.theme.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import java.io.File
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,47 +49,65 @@ fun LogsScreen(
     onClearLogs: () -> Unit
 ) {
     val pagingItems = events.collectAsLazyPagingItems()
+    var selectedFilter by remember { mutableStateOf("All") }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Security Logs") },
-                actions = {
-                    IconButton(onClick = onClearLogs) {
-                        Icon(Icons.Default.Delete, contentDescription = "Clear Logs")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundPrimary)
+    ) {
+        // Topbar
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxWidth()
+                .background(Color(0xFF111111))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            items(pagingItems.itemCount) { index ->
-                pagingItems[index]?.let { event ->
-                    EventItem(event)
-                }
+            Text("Events", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            IconButton(onClick = onClearLogs, modifier = Modifier.size(18.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
+            }
+        }
+
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Tags
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.FilterList, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                EventTag("All", active = selectedFilter == "All", onClick = { selectedFilter = "All" })
+                EventTag("Motion", active = selectedFilter == "Motion", onClick = { selectedFilter = "Motion" })
+                EventTag("Sound", active = selectedFilter == "Sound", onClick = { selectedFilter = "Sound" })
+                EventTag("Light", active = selectedFilter == "Light", onClick = { selectedFilter = "Light" })
             }
 
-            pagingItems.apply {
-                when {
-                    loadState.refresh is LoadState.Loading -> {
-                        item {
-                            Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(pagingItems.itemCount) { index ->
+                    pagingItems[index]?.let { event ->
+                        val matchesFilter = when (selectedFilter) {
+                            "All" -> true
+                            "Motion" -> event.sensorType == SensorType.CAMERA_MOTION
+                            "Sound" -> event.sensorType == SensorType.MICROPHONE
+                            "Light" -> event.sensorType == SensorType.LIGHT
+                            else -> true
+                        }
+
+                        if (matchesFilter) {
+                            EventItem(event)
                         }
                     }
-                    loadState.append is LoadState.Loading -> {
-                        item {
-                            Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        }
+                }
+
+                pagingItems.apply {
+                    if (loadState.refresh is LoadState.Loading) {
+                        item { Box(Modifier.fillParentMaxSize(), Alignment.Center) { CircularProgressIndicator() } }
                     }
                 }
             }
@@ -91,72 +116,114 @@ fun LogsScreen(
 }
 
 @Composable
-fun EventItem(event: Event) {
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-        .withZone(ZoneId.systemDefault())
-    val context = LocalContext.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+fun EventTag(text: String, active: Boolean = false, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (active) NeruppuOrangeSoft else BackgroundSecondary)
+            .border(0.5.dp, if (active) NeruppuOrangeBorder else BorderTertiary, CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 3.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+        Text(
+            text = text,
+            color = if (active) NeruppuOrange else TextSecondary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun EventItem(event: Event) {
+    var expanded by remember { mutableStateOf(false) }
+    val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a").withZone(ZoneId.systemDefault())
+    val color = when (event.sensorType) {
+        SensorType.CAMERA_MOTION -> NeruppuOrange
+        SensorType.MICROPHONE -> NeruppuBlue
+        SensorType.LIGHT -> NeruppuAmber
+        else -> NeruppuGreen
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BackgroundSecondary, RoundedCornerShape(12.dp))
+            .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp))
+            .clickable { expanded = !expanded }
+            .padding(10.dp)
+            .animateContentSize()
+    ) {
+        Row(
+            verticalAlignment = Alignment.Top
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val icon = when (event.sensorType) {
-                        SensorType.CAMERA_MOTION -> Icons.Default.PlayArrow
-                        else -> Icons.Default.Info
-                    }
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = event.sensorType.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Text(
-                    text = formatter.format(event.timestamp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = event.description,
-                style = MaterialTheme.typography.bodyLarge
+            // Dot
+            Box(
+                modifier = Modifier
+                    .padding(top = 3.dp)
+                    .size(8.dp)
+                    .background(color, CircleShape)
             )
-            
-            event.mediaUri?.let { uriString ->
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = when(event.sensorType) {
+                            SensorType.CAMERA_MOTION -> "Motion detected"
+                            SensorType.MICROPHONE -> "Loud noise burst"
+                            SensorType.LIGHT -> "Light change"
+                            else -> event.sensorType.name
+                        },
+                        color = TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    if (event.mediaUri != null) {
+                        Badge("📷 Photo", NeruppuOrangeSoft, NeruppuOrange)
+                    } else if (event.audioUri != null) {
+                        Badge("🎙 Audio", NeruppuBlueSoft, NeruppuBlue)
+                    }
+                }
+                
+                val meta = when(event.sensorType) {
+                    SensorType.CAMERA_MOTION -> "Camera · ${timeFormatter.format(event.timestamp)} · High confidence"
+                    SensorType.MICROPHONE -> "Mic · ${timeFormatter.format(event.timestamp)} · 78 dB peak"
+                    SensorType.LIGHT -> "Ambient sensor · ${timeFormatter.format(event.timestamp)} · 40→310 lx"
+                    else -> "${event.sensorType.name} · ${timeFormatter.format(event.timestamp)}"
+                }
+                Text(meta, color = TextSecondary, fontSize = 10.sp, modifier = Modifier.padding(top = 1.dp))
+
+                if (event.sensorType == SensorType.MICROPHONE && !expanded) {
+                    Waveform(color = NeruppuBlue)
+                }
+            }
+        }
+
+        // Expanded Content
+        if (expanded) {
+            if (event.mediaUri != null) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Image(
-                    painter = rememberAsyncImagePainter(uriString),
-                    contentDescription = "Captured Evidence",
+                    painter = rememberAsyncImagePainter(event.mediaUri),
+                    contentDescription = "Event Photo",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
+                        .height(250.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black),
+                    contentScale = ContentScale.Fit
                 )
             }
 
-            event.audioUri?.let { uriString ->
+            if (event.audioUri != null) {
+                val audioUri = event.audioUri!!
                 Spacer(modifier = Modifier.height(12.dp))
-                AudioPlayer(uriString = uriString)
+                AudioPlayer(uriString = audioUri)
             }
         }
     }
@@ -169,14 +236,12 @@ fun AudioPlayer(uriString: String) {
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var duration by remember { mutableIntStateOf(0) }
     var currentPosition by remember { mutableIntStateOf(0) }
-    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
 
-    LaunchedEffect(isPlaying, playbackSpeed) {
+    LaunchedEffect(isPlaying) {
         if (isPlaying) {
-            mediaPlayer?.playbackParams = mediaPlayer?.playbackParams?.setSpeed(playbackSpeed) ?: android.media.PlaybackParams().setSpeed(playbackSpeed)
             while (isPlaying && mediaPlayer?.isPlaying == true) {
                 currentPosition = mediaPlayer?.currentPosition ?: 0
-                kotlinx.coroutines.delay(100)
+                delay(100)
             }
             if (mediaPlayer?.isPlaying == false) {
                 isPlaying = false
@@ -190,155 +255,95 @@ fun AudioPlayer(uriString: String) {
         }
     }
 
-    Column(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
+                color = Color(0xFFF0F0F0),
+                shape = RoundedCornerShape(24.dp)
             )
-            .padding(12.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            IconButton(
-                onClick = {
-                    if (isPlaying) {
-                        mediaPlayer?.pause()
-                        isPlaying = false
-                    } else {
-                        try {
-                            if (mediaPlayer == null) {
-                                val uri = Uri.parse(uriString)
-                                val contentUri = if (uri.scheme == "file") {
-                                    val file = File(uri.path!!)
-                                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                                } else {
-                                    uri
-                                }
-                                mediaPlayer = MediaPlayer().apply {
-                                    setDataSource(context, contentUri)
-                                    setOnPreparedListener { 
-                                        duration = it.duration
-                                        it.playbackParams = it.playbackParams.setSpeed(playbackSpeed)
-                                        it.start()
-                                        isPlaying = true
-                                    }
-                                    setOnCompletionListener { 
-                                        isPlaying = false
-                                        currentPosition = 0
-                                        it.seekTo(0)
-                                    }
-                                    prepareAsync()
-                                }
+        IconButton(
+            onClick = {
+                if (isPlaying) {
+                    mediaPlayer?.pause()
+                    isPlaying = false
+                } else {
+                    try {
+                        if (mediaPlayer == null) {
+                            val uri = Uri.parse(uriString)
+                            val contentUri = if (uri.scheme == "file") {
+                                val file = File(uri.path ?: "")
+                                FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    file
+                                )
                             } else {
-                                mediaPlayer?.start()
-                                isPlaying = true
+                                uri
                             }
-                        } catch (e: Exception) {
-                            Log.e("LogsScreen", "Error playing audio", e)
+                            mediaPlayer = MediaPlayer().apply {
+                                setDataSource(context, contentUri)
+                                setOnPreparedListener {
+                                    duration = it.duration
+                                    it.start()
+                                    isPlaying = true
+                                }
+                                setOnCompletionListener {
+                                    isPlaying = false
+                                    currentPosition = 0
+                                    it.seekTo(0)
+                                }
+                                prepareAsync()
+                            }
+                        } else {
+                            mediaPlayer?.start()
+                            isPlaying = true
                         }
+                    } catch (e: Exception) {
+                        Log.e("LogsScreen", "Error playing audio", e)
                     }
                 }
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Refresh else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            TextButton(
-                onClick = {
-                    playbackSpeed = when (playbackSpeed) {
-                        1.0f -> 1.5f
-                        1.5f -> 2.0f
-                        else -> 1.0f
-                    }
-                },
-                modifier = Modifier.width(60.dp)
-            ) {
-                Text("${playbackSpeed}x", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            WavelengthVisualizer(isAnimating = isPlaying, modifier = Modifier.weight(1f).height(40.dp))
+            },
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color(0xFF555555),
+                modifier = Modifier.size(24.dp)
+            )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             Slider(
                 value = if (duration > 0) currentPosition.toFloat() else 0f,
-                onValueChange = { 
+                onValueChange = {
                     currentPosition = it.toInt()
                     mediaPlayer?.seekTo(it.toInt())
                 },
                 valueRange = 0f..(if (duration > 0) duration.toFloat() else 1f),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(32.dp),
                 colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                    thumbColor = Color(0xFF075E54),
+                    activeTrackColor = Color(0xFF075E54),
+                    inactiveTrackColor = Color(0xFFCCCCCC)
                 )
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = formatTime(currentPosition),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatTime(duration),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
-    }
-}
 
-@Composable
-fun WavelengthVisualizer(isAnimating: Boolean, modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "wavelength")
-    
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(20) { index ->
-            val heightScale by infiniteTransition.animateFloat(
-                initialValue = 0.2f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(
-                        durationMillis = 400 + (index * 40),
-                        easing = LinearEasing
-                    ),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "bar_$index"
-            )
-            
-            val currentScale = if (isAnimating) heightScale else 0.2f
-            
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(currentScale)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(2.dp)
-                    )
-            )
-        }
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = formatTime(if (isPlaying) currentPosition else duration),
+            fontSize = 11.sp,
+            color = Color(0xFF666666),
+            modifier = Modifier.padding(end = 8.dp)
+        )
     }
 }
 
@@ -347,4 +352,36 @@ fun formatTime(ms: Int): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+@Composable
+fun Badge(text: String, bgColor: Color, textColor: Color) {
+    Box(
+        modifier = Modifier
+            .background(bgColor, RoundedCornerShape(10.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(text, color = textColor, fontSize = 9.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+fun Waveform(color: Color) {
+    Row(
+        modifier = Modifier
+            .padding(vertical = 8.dp)
+            .height(20.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val heights = listOf(4, 9, 16, 18, 11, 7, 14, 6, 3)
+        heights.forEach { h ->
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(h.dp)
+                    .background(color, RoundedCornerShape(2.dp))
+            )
+        }
+    }
 }

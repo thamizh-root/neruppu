@@ -10,6 +10,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.tooling.preview.Preview
+import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
+
 /**
  * A pixel-perfect, real-time visualization dashboard inspired by Adafruit heatmaps.
  * Displays motion (Yellow), audio (Blue), and light (Green) waves on a grey background.
@@ -88,5 +91,20 @@ fun PixelPerfectDashboard(
         val gridColor = Color.White.copy(alpha = 0.1f)
         drawLine(gridColor, Offset(0f, sectionHeight), Offset(width, sectionHeight), 1f)
         drawLine(gridColor, Offset(0f, sectionHeight * 2), Offset(width, sectionHeight * 2), 1f)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PixelPerfectDashboardPreview() {
+    NeruppuTheme {
+        PixelPerfectDashboard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp),
+            motionLevel = 45f,
+            audioLevel = 0.6f,
+            lightLevel = 0.3f
+        )
     }
 }
