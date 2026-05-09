@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
 import org.havenapp.neruppu.core.ui.theme.*
+import org.havenapp.neruppu.ui.R
 
 @Composable
 fun DashboardScreen(
@@ -80,10 +82,9 @@ fun DashboardScreen(
                         Text(
                             "LIVE SENSORS",
                             color = TextSecondary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.8.sp,
-                            modifier = Modifier.padding(bottom = 10.dp)
+                            style = MaterialTheme.typography.labelMedium,
+                            letterSpacing = 1.2.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
                         )
                         SensorGrid(
                             motionLevel = motionLevel,
@@ -101,7 +102,8 @@ fun DashboardScreen(
 
                 BigButton(
                     text = if (isMonitoring) "Stop monitoring" else "Start guarding",
-                    icon = if (isMonitoring) Icons.Default.Stop else Icons.Default.Shield,
+                    iconPainter = if (isMonitoring) null else painterResource(id = R.drawable.neruppu_brand_logo),
+                    iconVector = if (isMonitoring) Icons.Default.Stop else null,
                     onClick = onToggleMonitoring,
                     secondary = isMonitoring,
                     backgroundColor = if (isMonitoring) Color.White.copy(alpha = 0.8f) else null
@@ -159,31 +161,31 @@ fun DashboardTopbar() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(id = R.drawable.neruppu_brand_logo),
+                    contentDescription = null,
+                    tint = NeruppuOrange,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "neru",
                     color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
                 Text(
                     text = "ppu",
                     color = NeruppuOrange,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    Icons.Default.Whatshot,
-                    contentDescription = null,
-                    tint = NeruppuOrange,
-                    modifier = Modifier.size(14.dp)
                 )
             }
         }
@@ -227,27 +229,27 @@ fun ShieldHero(isMonitoring: Boolean) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Default.Shield,
+                    painter = painterResource(id = R.drawable.neruppu_brand_logo),
                     contentDescription = null,
                     tint = if (isMonitoring) NeruppuOrange else Color(0xFF555555),
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 )
             }
         }
         
-        Spacer(modifier = Modifier.height(10.dp))
-        Text("Device is", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Device is", color = Color(0xFFAAAAAA), style = MaterialTheme.typography.bodyMedium)
         Text(
             if (isMonitoring) "Guarding" else "Idle",
             color = if (isMonitoring) Color.White else Color(0xFF777777),
-            fontSize = 18.sp,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Medium
         )
         Text(
-            if (isMonitoring) "Since 08:14 AM · 1h 27m active" else "Last guarded 2h ago",
+            if (isMonitoring) "Since 08:14 AM \u00b7 1h 27m active" else "Last guarded 2h ago",
             color = Color(0xFF666666),
-            fontSize = 10.sp,
-            modifier = Modifier.padding(bottom = 12.dp)
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(bottom = 16.dp)
         )
         
         // Status Pill
@@ -262,9 +264,9 @@ fun ShieldHero(isMonitoring: Boolean) {
                     if (isMonitoring) NeruppuGreen.copy(alpha = 0.3f) else BorderTertiary,
                     CircleShape
                 )
-                .padding(horizontal = 10.dp, vertical = 3.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -274,8 +276,7 @@ fun ShieldHero(isMonitoring: Boolean) {
             Text(
                 if (isMonitoring) "All sensors live" else "Monitoring off",
                 color = if (isMonitoring) NeruppuGreen else TextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.labelMedium
             )
         }
     }
@@ -342,13 +343,13 @@ fun SensorCard(
         modifier = modifier
             .background(BackgroundSecondary.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
             .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp))
-            .padding(10.dp)
+            .padding(12.dp)
     ) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(name, color = TextSecondary, fontSize = 10.sp)
-        Text(value, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(name, color = TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Text(value, color = TextPrimary, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -368,7 +369,8 @@ fun SensorCard(
 @Composable
 fun BigButton(
     text: String,
-    icon: ImageVector,
+    iconPainter: androidx.compose.ui.graphics.painter.Painter? = null,
+    iconVector: ImageVector? = null,
     onClick: () -> Unit,
     secondary: Boolean = false,
     backgroundColor: Color? = null
@@ -382,11 +384,15 @@ fun BigButton(
             contentColor = if (secondary) TextSecondary else Color.White
         ),
         border = if (secondary) BorderStroke(0.5.dp, BorderTertiary) else null,
-        contentPadding = PaddingValues(13.dp)
+        contentPadding = PaddingValues(16.dp)
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        if (iconPainter != null) {
+            Icon(iconPainter, contentDescription = null, modifier = Modifier.size(18.dp))
+        } else if (iconVector != null) {
+            Icon(iconVector, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(text, style = MaterialTheme.typography.labelLarge)
     }
 }
 

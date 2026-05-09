@@ -124,48 +124,47 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     bottomBar = {
                         NavigationBar(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF777777),
-                            modifier = Modifier.height(64.dp),
+                            containerColor = Color(0xFFF7F7F7), // Match BackgroundSecondary
+                            modifier = Modifier.height(80.dp),
                             tonalElevation = 0.dp
                         ) {
                             NavigationBarItem(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
                                 icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                label = { Text("Home", fontSize = 9.sp) },
+                                label = { Text("Home", style = MaterialTheme.typography.labelMedium) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = NeruppuOrange,
-                                    selectedTextColor = NeruppuOrange,
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = Color.Black,
                                     unselectedIconColor = Color(0xFF777777),
                                     unselectedTextColor = Color(0xFF777777),
-                                    indicatorColor = Color.Transparent
+                                    indicatorColor = NeruppuOrange.copy(alpha = 0.1f)
                                 )
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
                                 icon = { Icon(Icons.Default.List, contentDescription = null) },
-                                label = { Text("Events", fontSize = 9.sp) },
+                                label = { Text("Events", style = MaterialTheme.typography.labelMedium) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = NeruppuOrange,
-                                    selectedTextColor = NeruppuOrange,
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = Color.Black,
                                     unselectedIconColor = Color(0xFF777777),
                                     unselectedTextColor = Color(0xFF777777),
-                                    indicatorColor = Color.Transparent
+                                    indicatorColor = NeruppuOrange.copy(alpha = 0.1f)
                                 )
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
                                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                label = { Text("Settings", fontSize = 9.sp) },
+                                label = { Text("Settings", style = MaterialTheme.typography.labelMedium) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = NeruppuOrange,
-                                    selectedTextColor = NeruppuOrange,
+                                    selectedIconColor = Color.Black,
+                                    selectedTextColor = Color.Black,
                                     unselectedIconColor = Color(0xFF777777),
                                     unselectedTextColor = Color(0xFF777777),
-                                    indicatorColor = Color.Transparent
+                                    indicatorColor = NeruppuOrange.copy(alpha = 0.1f)
                                 )
                             )
                         }

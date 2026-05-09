@@ -9,8 +9,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -56,58 +58,93 @@ fun LogsScreen(
             .fillMaxSize()
             .background(BackgroundPrimary)
     ) {
-        // Topbar
+        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF111111))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Events", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            IconButton(onClick = onClearLogs, modifier = Modifier.size(18.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
+            Text("Events", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+            IconButton(onClick = onClearLogs, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
             }
         }
 
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Tags
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.FilterList, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-                EventTag("All", active = selectedFilter == "All", onClick = { selectedFilter = "All" })
-                EventTag("Motion", active = selectedFilter == "Motion", onClick = { selectedFilter = "Motion" })
-                EventTag("Sound", active = selectedFilter == "Sound", onClick = { selectedFilter = "Sound" })
-                EventTag("Light", active = selectedFilter == "Light", onClick = { selectedFilter = "Light" })
-            }
+        // Filter Chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EventTag("All", active = selectedFilter == "All", onClick = { selectedFilter = "All" })
+            EventTag("Motion", active = selectedFilter == "Motion", onClick = { selectedFilter = "Motion" })
+            EventTag("Sound", active = selectedFilter == "Sound", onClick = { selectedFilter = "Sound" })
+            EventTag("Light", active = selectedFilter == "Light", onClick = { selectedFilter = "Light" })
+        }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(pagingItems.itemCount) { index ->
-                    pagingItems[index]?.let { event ->
-                        val matchesFilter = when (selectedFilter) {
-                            "All" -> true
-                            "Motion" -> event.sensorType == SensorType.CAMERA_MOTION
-                            "Sound" -> event.sensorType == SensorType.MICROPHONE
-                            "Light" -> event.sensorType == SensorType.LIGHT
-                            else -> true
-                        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
+        ) {
+            items(pagingItems.itemCount) { index ->
+                pagingItems[index]?.let { event ->
+                    val matchesFilter = when (selectedFilter) {
+                        "All" -> true
+                        "Motion" -> event.sensorType == SensorType.CAMERA_MOTION
+                        "Sound" -> event.sensorType == SensorType.MICROPHONE
+                        "Light" -> event.sensorType == SensorType.LIGHT
+                        else -> true
+                    }
 
-                        if (matchesFilter) {
-                            EventItem(event)
-                        }
+                    if (matchesFilter) {
+                        EventItem(event)
                     }
                 }
+            }
 
-                pagingItems.apply {
-                    if (loadState.refresh is LoadState.Loading) {
-                        item { Box(Modifier.fillParentMaxSize(), Alignment.Center) { CircularProgressIndicator() } }
+            pagingItems.apply {
+                if (loadState.refresh is LoadState.Loading) {
+                    item {
+                        Box(Modifier.fillParentMaxSize(), Alignment.Center) {
+                            CircularProgressIndicator(color = NeruppuOrange)
+                        }
+                    }
+                } else if (itemCount == 0) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillParentMaxSize().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.CloudQueue,
+                                contentDescription = null,
+                                tint = Color(0xFFDADCE0),
+                                modifier = Modifier.size(120.dp)
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                "No events yet",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = Color(0xFF3C4043)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Events will appear here when sensors are triggered during monitoring.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF5F6368),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -119,18 +156,27 @@ fun LogsScreen(
 fun EventTag(text: String, active: Boolean = false, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(CircleShape)
-            .background(if (active) NeruppuOrangeSoft else BackgroundSecondary)
-            .border(0.5.dp, if (active) NeruppuOrangeBorder else BorderTertiary, CircleShape)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) NeruppuOrange.copy(alpha = 0.1f) else Color.Transparent)
+            .border(
+                1.dp, 
+                if (active) Color.Transparent else Color(0xFFDADCE0), 
+                RoundedCornerShape(8.dp)
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 3.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Text(
-            text = text,
-            color = if (active) NeruppuOrange else TextSecondary,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = text,
+                color = if (active) NeruppuOrange else Color(0xFF3C4043),
+                style = MaterialTheme.typography.labelLarge
+            )
+            if (active) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.Close, contentDescription = null, tint = NeruppuOrange, modifier = Modifier.size(14.dp))
+            }
+        }
     }
 }
 
@@ -138,11 +184,11 @@ fun EventTag(text: String, active: Boolean = false, onClick: () -> Unit) {
 fun EventItem(event: Event) {
     var expanded by remember { mutableStateOf(false) }
     val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a").withZone(ZoneId.systemDefault())
-    val color = when (event.sensorType) {
-        SensorType.CAMERA_MOTION -> NeruppuOrange
-        SensorType.MICROPHONE -> NeruppuBlue
-        SensorType.LIGHT -> NeruppuAmber
-        else -> NeruppuGreen
+    val (color, icon) = when (event.sensorType) {
+        SensorType.CAMERA_MOTION -> NeruppuOrange to Icons.Default.CameraAlt
+        SensorType.MICROPHONE -> NeruppuBlue to Icons.Default.Mic
+        SensorType.LIGHT -> NeruppuAmber to Icons.Default.WbSunny
+        else -> NeruppuGreen to Icons.Default.OpenWith
     }
 
     Column(
@@ -151,79 +197,107 @@ fun EventItem(event: Event) {
             .background(BackgroundSecondary, RoundedCornerShape(12.dp))
             .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp))
             .clickable { expanded = !expanded }
-            .padding(10.dp)
             .animateContentSize()
     ) {
         Row(
-            verticalAlignment = Alignment.Top
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Dot
+            // Icon container
             Box(
                 modifier = Modifier
-                    .padding(top = 3.dp)
-                    .size(8.dp)
-                    .background(color, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+                    .size(40.dp)
+                    .background(color.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
             Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Text(
+                    text = when(event.sensorType) {
+                        SensorType.CAMERA_MOTION -> "Motion detected"
+                        SensorType.MICROPHONE -> "Loud noise burst"
+                        SensorType.LIGHT -> "Light change"
+                        else -> event.sensorType.name
+                    },
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = when(event.sensorType) {
-                            SensorType.CAMERA_MOTION -> "Motion detected"
-                            SensorType.MICROPHONE -> "Loud noise burst"
-                            SensorType.LIGHT -> "Light change"
-                            else -> event.sensorType.name
-                        },
-                        color = TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        text = timeFormatter.format(event.timestamp),
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodyMedium
                     )
-                    
+                    Spacer(modifier = Modifier.width(8.dp))
                     if (event.mediaUri != null) {
                         Badge("📷 Photo", NeruppuOrangeSoft, NeruppuOrange)
                     } else if (event.audioUri != null) {
                         Badge("🎙 Audio", NeruppuBlueSoft, NeruppuBlue)
                     }
                 }
-                
-                val meta = when(event.sensorType) {
-                    SensorType.CAMERA_MOTION -> "Camera · ${timeFormatter.format(event.timestamp)} · High confidence"
-                    SensorType.MICROPHONE -> "Mic · ${timeFormatter.format(event.timestamp)} · 78 dB peak"
-                    SensorType.LIGHT -> "Ambient sensor · ${timeFormatter.format(event.timestamp)} · 40→310 lx"
-                    else -> "${event.sensorType.name} · ${timeFormatter.format(event.timestamp)}"
-                }
-                Text(meta, color = TextSecondary, fontSize = 10.sp, modifier = Modifier.padding(top = 1.dp))
-
-                if (event.sensorType == SensorType.MICROPHONE && !expanded) {
-                    Waveform(color = NeruppuBlue)
-                }
+            }
+            
+            IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 
         // Expanded Content
         if (expanded) {
-            if (event.mediaUri != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Image(
-                    painter = rememberAsyncImagePainter(event.mediaUri),
-                    contentDescription = "Event Photo",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black),
-                    contentScale = ContentScale.Fit
-                )
-            }
+            Column(
+                modifier = Modifier
+                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    .padding(top = 4.dp)
+            ) {
+                if (event.mediaUri != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(event.mediaUri),
+                        contentDescription = "Event Photo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black),
+                        contentScale = ContentScale.Fit
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-            if (event.audioUri != null) {
-                val audioUri = event.audioUri!!
-                Spacer(modifier = Modifier.height(12.dp))
-                AudioPlayer(uriString = audioUri)
+                if (event.audioUri != null) {
+                    AudioPlayer(uriString = event.audioUri!!)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                
+                if (event.sensorType == SensorType.MICROPHONE) {
+                    Waveform(color = NeruppuBlue)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                
+                val detailMeta = when(event.sensorType) {
+                    SensorType.CAMERA_MOTION -> "High confidence motion detected via CameraX analysis."
+                    SensorType.MICROPHONE -> "Sound level exceeded threshold."
+                    SensorType.LIGHT -> "Ambient light shifted significantly."
+                    else -> "Sensor trigger event."
+                }
+                Text(detailMeta, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -359,9 +433,9 @@ fun Badge(text: String, bgColor: Color, textColor: Color) {
     Box(
         modifier = Modifier
             .background(bgColor, RoundedCornerShape(10.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
-        Text(text, color = textColor, fontSize = 9.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = textColor, style = MaterialTheme.typography.labelSmall)
     }
 }
 

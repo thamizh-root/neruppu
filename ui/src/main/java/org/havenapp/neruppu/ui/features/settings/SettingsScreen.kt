@@ -49,13 +49,12 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFF111111))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
                 "Settings",
                 color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.titleMedium
             )
         }
 
@@ -136,10 +135,9 @@ fun SectionTitle(text: String) {
     Text(
         text = text.uppercase(),
         color = TextSecondary,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.7.sp,
-        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)
+        style = MaterialTheme.typography.labelMedium,
+        letterSpacing = 1.2.sp,
+        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
     )
 }
 
@@ -165,19 +163,19 @@ fun SettingRow(
             .fillMaxWidth()
             .background(BackgroundSecondary, RoundedCornerShape(12.dp))
             .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             icon,
             contentDescription = null,
             tint = TextSecondary,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text(subLabel, color = TextSecondary, fontSize = 10.sp)
+            Text(label, color = TextPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(subLabel, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
         }
         Switch(
             checked = checked,
@@ -207,8 +205,8 @@ fun SliderWrap(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, color = TextSecondary, fontSize = 10.sp)
-            Text(displayValue, color = color, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+            Text(label, color = TextSecondary, style = MaterialTheme.typography.labelMedium)
+            Text(displayValue, color = color, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
         }
         Slider(
             value = value,

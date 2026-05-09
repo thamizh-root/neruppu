@@ -1,10 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
+    android:width="24dp"
+    android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Centering the 24x24 logo in the 108x108 adaptive icon space is handled by the viewport/size ratio or manually -->
-    <!-- Here I'll just keep the 24x24 viewport and let Android scale it -->
     <path
         android:fillColor="#E8520A"
         android:pathData="M12,2L4,5V11C4,16.55 7.84,21.74 12,23C16.16,21.74 20,16.55 20,11V5L12,2Z" />
