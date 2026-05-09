@@ -5,6 +5,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import org.havenapp.neruppu.R
 import org.havenapp.neruppu.service.MonitoringService
 
 class EventNotificationWorker(
@@ -19,7 +20,7 @@ class EventNotificationWorker(
         val notification = NotificationCompat.Builder(applicationContext, MonitoringService.CHANNEL_ID)
             .setContentTitle("Security Event: $eventType")
             .setContentText(description)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_stat_security)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 

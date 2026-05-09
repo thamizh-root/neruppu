@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="480"
+    android:viewportHeight="480">
+    <!-- Simplified "Neruppu" icon for status bar (all white) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M240,92L262,102L268,122L292,122L298,102L320,122L316,144L358,185L378,211L388,240L378,269L358,295L316,336L320,358L298,378L292,358L268,358L262,378L240,388L218,378L212,358L188,358L182,378L160,358L164,336L122,295L102,269L92,240L102,211L122,185L164,144L160,122L182,102L188,122L212,122L218,102Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M240,240m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0" />
+</vector>

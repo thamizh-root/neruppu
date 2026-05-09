@@ -27,6 +27,7 @@ import androidx.work.WorkManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import org.havenapp.neruppu.R
 import org.havenapp.neruppu.data.audio.AudioRecorder
 import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.data.sensors.*
@@ -428,7 +429,7 @@ class MonitoringService : LifecycleService() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Neruppu Monitoring")
             .setContentText("System is active and monitoring sensors")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setSmallIcon(R.drawable.ic_stat_security)
             .setOngoing(true)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
             .build()
