@@ -72,6 +72,10 @@ class MonitoringService : LifecycleService() {
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring
 
+    private val notificationManager by lazy {
+        getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
+
     inner class LocalBinder : Binder() {
         fun getService(): MonitoringService = this@MonitoringService
     }
@@ -112,15 +116,7 @@ class MonitoringService : LifecycleService() {
         })
 
         createNotificationChannel()
-
-        // 1. Immediately claim foreground status to secure sensor access
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or 
-                       ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            startForeground(NOTIFICATION_ID, createNotification(), type)
-        } else {
-            startForeground(NOTIFICATION_ID, createNotification())
-        }
+        updateNotification()
 
         accelerometerDriver = AccelerometerDriver(this)
         microphoneDriver = MicrophoneDriver()
@@ -208,6 +204,7 @@ class MonitoringService : LifecycleService() {
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
         }
+        updateNotification()
         startMonitoringIfNeeded()
     }
 
@@ -418,6 +415,17 @@ class MonitoringService : LifecycleService() {
         manager.createNotificationChannel(channel)
     }
 
+    private fun updateNotification() {
+        val notification = createNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or 
+                       ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            startForeground(NOTIFICATION_ID, notification, type)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
     private fun createNotification(): Notification {
         val stopIntent = Intent(this, MonitoringService::class.java).apply {
             action = ACTION_STOP_SERVICE
@@ -426,12 +434,18 @@ class MonitoringService : LifecycleService() {
             this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
+        val contentText = if (_isMonitoring.value) {
+            "System is active and monitoring sensors"
+        } else {
+            "System is idle. Tap START to begin monitoring."
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Neruppu Monitoring")
-            .setContentText("System is active and monitoring sensors")
+            .setContentTitle("Neruppu Security")
+            .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_stat_security)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopPendingIntent)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Service", stopPendingIntent)
             .build()
     }
 
