@@ -32,3 +32,7 @@ Thumbs.db
 
 # Project Specific
 .artifacts
+
+# Keystores & Secrets
+*.jks
+keystore_base64.txt
