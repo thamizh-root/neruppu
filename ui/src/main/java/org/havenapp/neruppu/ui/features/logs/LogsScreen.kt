@@ -54,10 +54,11 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun LogsScreen(
     events: Flow<PagingData<Event>>,
-    onClearLogs: () -> Unit
+    onClearLogs: (Boolean) -> Unit
 ) {
     val pagingItems = events.collectAsLazyPagingItems()
     var selectedFilter by remember { mutableStateOf("All") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -66,7 +67,7 @@ fun LogsScreen(
     ) {
         // Header
         ScreenHeader(title = "Events") {
-            IconButton(onClick = onClearLogs) {
+            IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
                     Icons.Default.DeleteSweep, 
                     contentDescription = "Clear all", 
@@ -74,6 +75,16 @@ fun LogsScreen(
                     modifier = Modifier.size(24.dp)
                 )
             }
+        }
+
+        if (showDeleteDialog) {
+            DeleteConfirmationDialog(
+                onConfirm = { deleteFiles ->
+                    onClearLogs(deleteFiles)
+                    showDeleteDialog = false
+                },
+                onDismiss = { showDeleteDialog = false }
+            )
         }
 
         // Filter Chips
@@ -431,6 +442,70 @@ fun formatTime(ms: Int): String {
     return "%02d:%02d".format(minutes, seconds)
 }
 
+@Composable
+fun DeleteConfirmationDialog(
+    onConfirm: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var deleteFiles by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Clear all events?",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "This will remove all recorded security events from your log history.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { deleteFiles = !deleteFiles }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = deleteFiles,
+                        onCheckedChange = { deleteFiles = it },
+                        colors = CheckboxDefaults.colors(checkedColor = NeruppuOrange)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Also delete media files from device storage",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(deleteFiles) },
+                colors = ButtonDefaults.buttonColors(containerColor = NeruppuRed),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Clear All", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextSecondary)
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 fun LogsScreenPreview() {
@@ -471,6 +546,14 @@ fun LogsScreenEmptyPreview() {
             events = flowOf(PagingData.empty()),
             onClearLogs = {}
         )
+    }
+}
+
+@Preview
+@Composable
+fun DeleteConfirmationDialogPreview() {
+    NeruppuTheme {
+        DeleteConfirmationDialog(onConfirm = {}, onDismiss = {})
     }
 }
 

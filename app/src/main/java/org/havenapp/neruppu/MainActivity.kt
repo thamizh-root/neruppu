@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
                             1 -> {
                                 LogsScreen(
                                     events = logsViewModel.events,
-                                    onClearLogs = { logsViewModel.clearLogs() }
+                                    onClearLogs = { deleteFiles -> logsViewModel.clearLogs(deleteFiles) }
                                 )
                             }
                             2 -> {

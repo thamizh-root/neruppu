@@ -16,9 +16,9 @@ class LogsViewModel(
     val events: Flow<PagingData<Event>> = sensorRepository.getEvents()
         .cachedIn(viewModelScope)
 
-    fun clearLogs() {
+    fun clearLogs(deleteFiles: Boolean) {
         viewModelScope.launch {
-            sensorRepository.clearEvents()
+            sensorRepository.clearEvents(deleteFiles)
         }
     }
 }
