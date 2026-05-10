@@ -1,5 +1,18 @@
-# Add project specific ProGuard rules here.
-# By default, the flags in this file are appended to flags specified
-# in C:\Users\write\AppData\Local\Android\Sdk/tools/proguard/proguard-android.txt
-# You can edit the include path and order by changing the proguardFiles
-# directive in build.gradle.
+# SLF4J
+-dontwarn org.slf4j.**
+
+# Ktor
+-keep class io.ktor.** { *; }
+-dontwarn io.ktor.**
+
+# Kotlinx Serialization
+-keepattributes *Annotation*, EnclosingMethod
+-keepclassmembers class ** {
+    @kotlinx.serialization.SerialName <fields>;
+}
+
+# Room
+-dontwarn androidx.room.paging.LimitOffsetPagingSource
+
+# Hilt
+-keep class dagger.hilt.android.internal.** { *; }
