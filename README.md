@@ -29,6 +29,7 @@ The project follows a modular Clean Architecture pattern:
 - `:ui` - Common UI components and feature-specific Compose screens.
 - `:core` - Shared utilities, theme definitions, and base classes.
 
-## 📄 License
+## 📥 How to Try Neruppu
+You can try Neruppu immediately by downloading the latest `.apk` from the **Releases** tab.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Simply install the app on your Android device and start guarding your environment. We highly value your feedback—whether it's constructive criticism or appreciation, your input is vital to making Neruppu a better tool for everyone.
