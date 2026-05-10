@@ -22,6 +22,9 @@ interface EventDao {
     @androidx.room.Update
     suspend fun updateEvent(event: EventEntity)
 
+    @Query("SELECT * FROM events")
+    suspend fun getAllEvents(): List<EventEntity>
+
     @Query("DELETE FROM events")
     suspend fun clearEvents()
 }

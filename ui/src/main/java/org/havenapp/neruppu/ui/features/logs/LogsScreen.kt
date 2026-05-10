@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +26,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -35,9 +38,12 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.havenapp.neruppu.core.ui.theme.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
+import org.havenapp.neruppu.ui.R
+import org.havenapp.neruppu.ui.components.ScreenHeader
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -48,10 +54,11 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun LogsScreen(
     events: Flow<PagingData<Event>>,
-    onClearLogs: () -> Unit
+    onClearLogs: (Boolean) -> Unit
 ) {
     val pagingItems = events.collectAsLazyPagingItems()
     var selectedFilter by remember { mutableStateOf("All") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -59,24 +66,32 @@ fun LogsScreen(
             .background(BackgroundPrimary)
     ) {
         // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Events", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
-            IconButton(onClick = onClearLogs, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+        ScreenHeader(title = "Events") {
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(
+                    Icons.Default.DeleteSweep, 
+                    contentDescription = "Clear all", 
+                    tint = TextSecondary,
+                    modifier = Modifier.size(24.dp)
+                )
             }
+        }
+
+        if (showDeleteDialog) {
+            DeleteConfirmationDialog(
+                onConfirm = { deleteFiles ->
+                    onClearLogs(deleteFiles)
+                    showDeleteDialog = false
+                },
+                onDismiss = { showDeleteDialog = false }
+            )
         }
 
         // Filter Chips
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp)
+                .padding(vertical = 12.dp)
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -92,8 +107,8 @@ fun LogsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 16.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             items(pagingItems.itemCount) { index ->
                 pagingItems[index]?.let { event ->
@@ -121,28 +136,32 @@ fun LogsScreen(
                 } else if (itemCount == 0) {
                     item {
                         Column(
-                            modifier = Modifier.fillParentMaxSize().padding(32.dp),
+                            modifier = Modifier
+                                .fillParentMaxSize()
+                                .padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                Icons.Default.CloudQueue,
+                                painter = painterResource(id = R.drawable.neruppu_brand_logo),
                                 contentDescription = null,
-                                tint = Color(0xFFDADCE0),
-                                modifier = Modifier.size(120.dp)
+                                tint = BorderTertiary,
+                                modifier = Modifier.size(100.dp)
                             )
                             Spacer(modifier = Modifier.height(24.dp))
                             Text(
-                                "No events yet",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = Color(0xFF3C4043)
+                                "No events recorded",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.SemiBold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "Events will appear here when sensors are triggered during monitoring.",
+                                "When sensors are triggered during monitoring, events will be listed here.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF5F6368),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                lineHeight = 20.sp
                             )
                         }
                     }
@@ -154,28 +173,23 @@ fun LogsScreen(
 
 @Composable
 fun EventTag(text: String, active: Boolean = false, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (active) NeruppuOrange.copy(alpha = 0.1f) else Color.Transparent)
-            .border(
-                1.dp, 
-                if (active) Color.Transparent else Color(0xFFDADCE0), 
-                RoundedCornerShape(8.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = if (active) NeruppuOrange else Color.Transparent,
+        border = if (active) null else BorderStroke(1.dp, BorderTertiary),
+        modifier = Modifier.height(36.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
             Text(
                 text = text,
-                color = if (active) NeruppuOrange else Color(0xFF3C4043),
-                style = MaterialTheme.typography.labelLarge
+                color = if (active) Color.White else TextSecondary,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium
             )
-            if (active) {
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(Icons.Default.Close, contentDescription = null, tint = NeruppuOrange, modifier = Modifier.size(14.dp))
-            }
         }
     }
 }
@@ -426,6 +440,121 @@ fun formatTime(ms: Int): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    onConfirm: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var deleteFiles by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Clear all events?",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "This will remove all recorded security events from your log history.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { deleteFiles = !deleteFiles }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = deleteFiles,
+                        onCheckedChange = { deleteFiles = it },
+                        colors = CheckboxDefaults.colors(checkedColor = NeruppuOrange)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Also delete media files from device storage",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(deleteFiles) },
+                colors = ButtonDefaults.buttonColors(containerColor = NeruppuRed),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Clear All", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextSecondary)
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LogsScreenPreview() {
+    NeruppuTheme {
+        LogsScreen(
+            events = flowOf(PagingData.from(listOf(
+                Event(
+                    id = 1,
+                    timestamp = Instant.now(),
+                    sensorType = SensorType.CAMERA_MOTION,
+                    description = "Motion detected in living room",
+                    mediaUri = "https://example.com/photo.jpg"
+                ),
+                Event(
+                    id = 2,
+                    timestamp = Instant.now().minus(5, ChronoUnit.MINUTES),
+                    sensorType = SensorType.MICROPHONE,
+                    description = "Loud noise detected",
+                    audioUri = "https://example.com/audio.mp3"
+                ),
+                Event(
+                    id = 3,
+                    timestamp = Instant.now().minus(10, ChronoUnit.MINUTES),
+                    description = "Light turned on",
+                    sensorType = SensorType.LIGHT
+                )
+            ))),
+            onClearLogs = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LogsScreenEmptyPreview() {
+    NeruppuTheme {
+        LogsScreen(
+            events = flowOf(PagingData.empty()),
+            onClearLogs = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+fun DeleteConfirmationDialogPreview() {
+    NeruppuTheme {
+        DeleteConfirmationDialog(onConfirm = {}, onDismiss = {})
+    }
 }
 
 @Composable

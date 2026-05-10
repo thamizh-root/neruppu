@@ -44,7 +44,10 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideSensorRepository(eventDao: EventDao): SensorRepository {
-        return SensorRepositoryImpl(eventDao)
+    fun provideSensorRepository(
+        @ApplicationContext context: Context,
+        eventDao: EventDao
+    ): SensorRepository {
+        return SensorRepositoryImpl(context, eventDao)
     }
 }

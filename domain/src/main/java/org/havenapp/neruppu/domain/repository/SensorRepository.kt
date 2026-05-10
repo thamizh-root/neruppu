@@ -8,5 +8,5 @@ interface SensorRepository {
     fun getEvents(): Flow<PagingData<Event>>
     suspend fun saveEvent(event: Event): Long
     suspend fun updateEventAudio(eventId: Long, audioUri: String)
-    suspend fun clearEvents()
+    suspend fun clearEvents(deleteFiles: Boolean = false)
 }
