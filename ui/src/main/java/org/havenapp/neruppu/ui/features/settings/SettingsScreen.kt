@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.havenapp.neruppu.core.ui.theme.*
 
+import org.havenapp.neruppu.ui.components.ScreenHeader
+
 @Composable
 fun SettingsScreen(
     motionEnabled: Boolean,
@@ -42,23 +44,15 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundPrimary)
-            .verticalScroll(rememberScrollState())
     ) {
-        // Topbar
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF111111))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Text(
-                "Settings",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
+        ScreenHeader(title = "Settings")
 
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(12.dp)
+        ) {
             SectionTitle("Sensors")
             SettingsList {
                 SettingRow(
