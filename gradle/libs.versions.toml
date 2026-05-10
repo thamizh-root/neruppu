@@ -9,6 +9,7 @@ lifecycleRuntimeKtx = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2024.10.01"
 hilt = "2.51.1"
+hiltNavigationCompose = "1.2.0"
 room = "2.6.1"
 cameraX = "1.4.0"
 coroutines = "1.8.1"
@@ -17,6 +18,9 @@ paging = "3.3.2"
 splashScreen = "1.0.1"
 mockk = "1.13.10"
 leakCanary = "2.14"
+ktor = "2.3.7"
+securityCrypto = "1.1.0-alpha06"
+serialization = "1.6.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +44,7 @@ androidx-material-icons-extended = { group = "androidx.compose.material", name =
 google-material = { group = "com.google.android.material", name = "material", version = "1.12.0" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
@@ -58,6 +63,11 @@ kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version = "2.6.0" }
 leakcanary-android = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakCanary" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
