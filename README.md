@@ -35,29 +35,17 @@ The project follows a modular Clean Architecture pattern:
 ### 1. Home - The Dashboard
 The command center. Toggle monitoring with the "Start Guarding" button. View real-time sensor levels (Luminosity, Sound dB, Motion) and a live activity preview.
 
-<div align="center">
-  <img src="assets/home.jpg" alt="Neruppu" />
-</div> 
-
 ### 2. Events - The Evidence Log
 Review all security triggers in a unified, modern list.
 *   **Filter**: Quickly filter between Motion, Sound, or Light events.
 *   **Review**: Expand items to view high-quality photos or listen to captured audio.
 *   **Safe Clear**: Delete logs with an optional toggle to physically wipe the media files from your device.
 
-<div align="center">
-  <img src="assets/events.jpg" alt="Neruppu" />
-</div> 
-
 ### 3. Settings - Calibration & Matrix
 Fine-tune your security environment.
 *   **Sensor Toggles**: Enable/Disable specific sensors.
 *   **Sensitivity Sliders**: Adjust motion and sound thresholds to minimize false positives.
 *   **Matrix Configuration**: Detailed setup for receiving remote notifications.
-
-<div align="center">
-  <img src="assets/settings.jpg" alt="Neruppu" />
-</div> 
 
 ##  Matrix Configuration Guide
 
@@ -70,6 +58,10 @@ To receive alerts on your primary phone or computer:
     *   **Access Token**: Found in your User Settings -> Help & About (Advanced).
 3.  **Configure**: Enter details in Neruppu Settings and tap **Save Config**.
 4.  **Verify**: Use the **Test Connection** button to confirm setup.
+
+| Home Dashboard | Evidence Log | Settings & Matrix |
+| :---: | :---: | :---: |
+| <img src="assets/home.jpg" width="300" /> | <img src="assets/events.jpg" width="300" /> | <img src="assets/settings.jpg" width="300" /> |
 
 ## 📥 How to Try Neruppu
 You can try Neruppu immediately by downloading the latest `.apk` from the **Releases** tab.
