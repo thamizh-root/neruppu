@@ -59,6 +59,10 @@ To receive alerts on your primary phone or computer:
 3.  **Configure**: Enter details in Neruppu Settings and tap **Save Config**.
 4.  **Verify**: Use the **Test Connection** button to confirm setup.
 
+| Home Dashboard | Evidence Log | Settings & Matrix |
+| :---: | :---: | :---: |
+| <img src="assets/home.jpg" width="300" /> | <img src="assets/events.jpg" width="300" /> | <img src="assets/settings.jpg" width="300" /> |
+
 ## 📥 How to Try Neruppu
 You can try Neruppu immediately by downloading the latest `.apk` from the **Releases** tab.
 
