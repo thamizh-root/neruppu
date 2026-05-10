@@ -33,8 +33,11 @@ import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.data.sensors.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
+import org.havenapp.neruppu.domain.model.SensorEvent
 import org.havenapp.neruppu.domain.repository.SensorRepository
+import org.havenapp.neruppu.domain.usecase.HandleSensorEventUseCase
 import org.havenapp.neruppu.worker.EventNotificationWorker
+import java.io.File
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -42,6 +45,9 @@ class MonitoringService : LifecycleService() {
 
     @Inject
     lateinit var sensorRepository: SensorRepository
+
+    @Inject
+    lateinit var handleSensorEventUseCase: HandleSensorEventUseCase
 
     @Inject
     lateinit var cameraManager: CameraManager
@@ -356,15 +362,19 @@ class MonitoringService : LifecycleService() {
         serviceScope.launch {
             try {
                 Log.d("MonitoringService", "Capturing ${captureDuration/1000}s audio clip of the event...")
-                audioRecorder.startRecording()
+                val audioFile = audioRecorder.startRecording()
                 delay(captureDuration)
                 val uri = audioRecorder.stopRecording()
-                if (uri != null) {
-                    Log.i("MonitoringService", "AUDIO CLIP SAVED: $uri")
-                    if (eventId != -1L) {
-                        sensorRepository.updateEventAudio(eventId, uri.toString())
-                        Log.d("MonitoringService", "Event $eventId updated with audio URI")
-                    }
+                if (uri != null && audioFile != null) {
+                    Log.i("MonitoringService", "AUDIO CLIP CAPTURED: $uri")
+                    
+                    val sensorEvent = SensorEvent(
+                        sensorType = SensorType.MICROPHONE,
+                        description = "Acoustic event recording",
+                        timestamp = System.currentTimeMillis(),
+                        audioFile = audioFile
+                    )
+                    handleSensorEventUseCase.execute(sensorEvent)
                 }
             } catch (e: Exception) {
                 Log.e("MonitoringService", "Audio recording failed", e)
@@ -391,26 +401,34 @@ class MonitoringService : LifecycleService() {
 
         Log.i("MonitoringService", ">>> TRIGGERING EVENT: $type - $description")
         
-        val mediaUri = try { 
-            Log.d("MonitoringService", "Attempting to capture photo for event...")
-            val uri = cameraManager.capturePhoto()
-            if (uri != null) {
-                Log.i("MonitoringService", "PHOTO CAPTURED: $uri")
-            } else {
-                Log.w("MonitoringService", "PHOTO CAPTURE RETURNED NULL")
+        // 1. Capture photo bytes if possible
+        val imageBytes: ByteArray? = if (getSharedPreferences("neruppu_prefs", MODE_PRIVATE).getBoolean("save_photos", true)) {
+            try {
+                Log.d("MonitoringService", "Attempting to capture photo for event...")
+                val uri = cameraManager.capturePhoto()
+                uri?.let { contentResolver.openInputStream(it)?.use { stream -> stream.readBytes() } }
+            } catch (e: Exception) {
+                Log.e("MonitoringService", "CRITICAL FAILURE: Photo capture threw exception", e)
+                null
             }
-            uri?.toString()
-        } catch (e: Exception) { 
-            Log.e("MonitoringService", "CRITICAL FAILURE: Photo capture threw exception", e)
-            null 
-        }
+        } else null
 
-        val event = Event(
+        // 2. Prepare SensorEvent for Use Case
+        val sensorEvent = SensorEvent(
             sensorType = type,
             description = description,
-            mediaUri = mediaUri,
+            timestamp = now,
+            imageBytes = imageBytes
         )
-        val id = sensorRepository.saveEvent(event)
+
+        // 3. Orchestrate via Use Case (saves locally + logs in DB + sends Matrix alert)
+        Log.d("MonitoringService", "Calling HandleSensorEventUseCase for $type")
+        val result = handleSensorEventUseCase.execute(sensorEvent)
+        val id = result.getOrDefault(-1L)
+        
+        if (result.isFailure) {
+            Log.e("MonitoringService", "UseCase failed", result.exceptionOrNull())
+        }
         
         // Schedule deferred notification via WorkManager (Best Practice)
         val workData = Data.Builder()
@@ -424,7 +442,7 @@ class MonitoringService : LifecycleService() {
             
         WorkManager.getInstance(this).enqueue(notificationWork)
 
-        Log.i("MonitoringService", "EVENT SAVED TO DATABASE: $type (ID: $id)")
+        Log.i("MonitoringService", "EVENT PROCESSED: $type (Local ID: $id)")
         return id
     }
 

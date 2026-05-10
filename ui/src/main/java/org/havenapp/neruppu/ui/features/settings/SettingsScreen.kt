@@ -126,6 +126,8 @@ fun SettingsScreen(
                     onCheckedChange = onSavePhotosToggle
                 )
             }
+
+            MatrixSettingsSection()
         }
     }
 }
