@@ -8,56 +8,44 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.havenapp.neruppu.domain.di.MatrixTransport
-import org.havenapp.neruppu.domain.repository.MatrixConfigRepository
+import org.havenapp.neruppu.domain.di.TelegramTransport
+import org.havenapp.neruppu.domain.repository.TelegramConfigRepository
 import org.havenapp.neruppu.domain.transport.AlertTransport
 import javax.inject.Inject
 
-data class MatrixUiState(
-    val homeserverUrl: String = "",
-    val roomId: String = "",
-    val accessToken: String = "",
+data class TelegramUiState(
+    val botToken: String = "",
+    val chatId: String = "",
     val isSaved: Boolean = false,
     val testStatus: TestStatus? = null
 )
 
-data class TestStatus(
-    val success: Boolean,
-    val error: String? = null
-)
-
 @HiltViewModel
-class MatrixSettingsViewModel @Inject constructor(
-    private val configRepository: MatrixConfigRepository,
-    @MatrixTransport private val alertTransport: AlertTransport
+class TelegramSettingsViewModel @Inject constructor(
+    private val configRepository: TelegramConfigRepository,
+    @TelegramTransport private val alertTransport: AlertTransport
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        MatrixUiState(
-            homeserverUrl = configRepository.homeserverUrl,
-            roomId = configRepository.roomId,
-            accessToken = configRepository.accessToken,
+        TelegramUiState(
+            botToken = configRepository.botToken,
+            chatId = configRepository.chatId,
             isSaved = configRepository.isComplete
         )
     )
-    val uiState: StateFlow<MatrixUiState> = _uiState.asStateFlow()
-
-    fun onHomeserverChange(value: String) {
-        _uiState.update { it.copy(homeserverUrl = value) }
-    }
-
-    fun onRoomIdChange(value: String) {
-        _uiState.update { it.copy(roomId = value) }
-    }
+    val uiState: StateFlow<TelegramUiState> = _uiState.asStateFlow()
 
     fun onTokenChange(value: String) {
-        _uiState.update { it.copy(accessToken = value) }
+        _uiState.update { it.copy(botToken = value) }
+    }
+
+    fun onChatIdChange(value: String) {
+        _uiState.update { it.copy(chatId = value) }
     }
 
     fun saveConfig() {
-        configRepository.homeserverUrl = _uiState.value.homeserverUrl
-        configRepository.roomId = _uiState.value.roomId
-        configRepository.accessToken = _uiState.value.accessToken
+        configRepository.botToken = _uiState.value.botToken
+        configRepository.chatId = _uiState.value.chatId
         _uiState.update { it.copy(isSaved = configRepository.isComplete) }
     }
 

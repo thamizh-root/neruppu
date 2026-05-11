@@ -122,6 +122,7 @@ fun SettingsScreen(
             }
 
             MatrixSettingsSection()
+            TelegramSettingsSection()
         }
     }
 }

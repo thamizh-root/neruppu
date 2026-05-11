@@ -1,16 +1,20 @@
 package org.havenapp.neruppu.domain.model
 
 sealed class AlertPayload {
+    abstract val sensorType: SensorType
+    abstract val message: String
+    abstract val timestamp: Long
+
     data class TextAlert(
-        val sensorType: SensorType,
-        val message: String,
-        val timestamp: Long
+        override val sensorType: SensorType,
+        override val message: String,
+        override val timestamp: Long
     ) : AlertPayload()
 
     data class MediaAlert(
-        val sensorType: SensorType,
-        val message: String,
+        override val sensorType: SensorType,
+        override val message: String,
         val mediaFile: MediaFile,
-        val timestamp: Long
+        override val timestamp: Long
     ) : AlertPayload()
 }

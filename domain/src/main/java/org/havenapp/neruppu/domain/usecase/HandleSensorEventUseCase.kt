@@ -12,7 +12,7 @@ import javax.inject.Inject
 
 class HandleSensorEventUseCase @Inject constructor(
     private val mediaStorage: MediaStorageRepository,
-    private val alertTransport: AlertTransport,
+    private val alertTransports: Set<@JvmSuppressWildcards AlertTransport>,
     private val sensorRepository: SensorRepository
 ) {
     suspend fun execute(sensorEvent: SensorEvent): Result<Long> = runCatching {
@@ -34,7 +34,7 @@ class HandleSensorEventUseCase @Inject constructor(
 
         // 2. Always log the event in Room
         val event = Event(
-            timestamp = Instant.ofEpochMilli(sensorEvent.timestamp),
+            timestamp = java.time.Instant.ofEpochMilli(sensorEvent.timestamp),
             sensorType = sensorEvent.sensorType,
             description = sensorEvent.description,
             mediaUri = savedImage?.absolutePath,
@@ -43,38 +43,39 @@ class HandleSensorEventUseCase @Inject constructor(
         val eventId = sensorRepository.saveEvent(event)
         println("Neruppu: Event saved in database with ID: $eventId")
 
-        // 3. If Matrix is configured, attempt push
-        val configured = alertTransport.isConfigured
-        println("Neruppu: Matrix configured check: $configured")
-        if (configured) {
-            val payload = when {
-                savedImage != null -> {
-                    AlertPayload.MediaAlert(
-                        sensorType = sensorEvent.sensorType,
-                        message = sensorEvent.description,
-                        mediaFile = savedImage!!,
-                        timestamp = sensorEvent.timestamp
-                    )
-                }
-                savedAudio != null -> {
-                    AlertPayload.MediaAlert(
-                        sensorType = sensorEvent.sensorType,
-                        message = sensorEvent.description,
-                        mediaFile = savedAudio!!,
-                        timestamp = sensorEvent.timestamp
-                    )
-                }
-                else -> {
-                    AlertPayload.TextAlert(
-                        sensorType = sensorEvent.sensorType,
-                        message = sensorEvent.description,
-                        timestamp = sensorEvent.timestamp
-                    )
-                }
+        // 3. Send alerts via all configured transports
+        val payload = when {
+            savedImage != null -> {
+                AlertPayload.MediaAlert(
+                    sensorType = sensorEvent.sensorType,
+                    message = sensorEvent.description,
+                    mediaFile = savedImage!!,
+                    timestamp = sensorEvent.timestamp
+                )
             }
-            
-            // Fire and forget push
-            alertTransport.send(payload)
+            savedAudio != null -> {
+                AlertPayload.MediaAlert(
+                    sensorType = sensorEvent.sensorType,
+                    message = sensorEvent.description,
+                    mediaFile = savedAudio!!,
+                    timestamp = sensorEvent.timestamp
+                )
+            }
+            else -> {
+                AlertPayload.TextAlert(
+                    sensorType = sensorEvent.sensorType,
+                    message = sensorEvent.description,
+                    timestamp = sensorEvent.timestamp
+                )
+            }
+        }
+        
+        alertTransports.forEach { transport ->
+            if (transport.isConfigured) {
+                println("Neruppu: Sending alert via ${transport.javaClass.simpleName}")
+                // Fire and forget push
+                transport.send(payload)
+            }
         }
         
         eventId
