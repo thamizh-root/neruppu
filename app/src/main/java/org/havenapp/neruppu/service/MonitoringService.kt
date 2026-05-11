@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.os.Process
 import android.util.Log
+import org.havenapp.neruppu.BuildConfig
 import androidx.camera.core.Preview
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
@@ -37,7 +38,8 @@ import org.havenapp.neruppu.domain.model.SensorEvent
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.domain.usecase.HandleSensorEventUseCase
 import org.havenapp.neruppu.worker.EventNotificationWorker
-import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -52,7 +54,7 @@ class MonitoringService : LifecycleService() {
     @Inject
     lateinit var cameraManager: CameraManager
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var wakeLock: PowerManager.WakeLock? = null
     private var sensorsJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -88,17 +90,37 @@ class MonitoringService : LifecycleService() {
 
     private val binder = LocalBinder()
 
+    private var prefChangeJob: Job? = null
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        when (key) {
-            "motion_sensitivity", "use_front_camera" -> {
-                Log.d("MonitoringService", "Prefs changed ($key), re-binding camera...")
-                startMonitoring() // Re-bind with new settings
-            }
-            "audio_threshold" -> {
-                Log.d("MonitoringService", "Prefs changed ($key), updating audio threshold...")
-                startMicrophoneMonitoring()
+        prefChangeJob?.cancel()
+        prefChangeJob = serviceScope.launch {
+            delay(500) // debounce
+            when (key) {
+                "motion_sensitivity", "use_front_camera" -> {
+                    Log.d("MonitoringService", "Prefs changed ($key), re-binding camera...")
+                    updatePrefValues()
+                    startMonitoring()
+                }
+                "audio_threshold", "save_photos" -> {
+                    Log.d("MonitoringService", "Prefs changed ($key), updating values...")
+                    updatePrefValues()
+                    if (key == "audio_threshold") startMicrophoneMonitoring()
+                }
             }
         }
+    }
+
+    private var savePhotosPref = true
+    private var sensitivityPref = 15f
+    private var useFrontCameraPref = false
+    private var audioThresholdPref = 800f
+
+    private fun updatePrefValues() {
+        val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+        savePhotosPref = prefs.getBoolean("save_photos", true)
+        sensitivityPref = prefs.getFloat("motion_sensitivity", 15f)
+        useFrontCameraPref = prefs.getBoolean("use_front_camera", false)
+        audioThresholdPref = prefs.getFloat("audio_threshold", 800f)
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -106,9 +128,9 @@ class MonitoringService : LifecycleService() {
         return binder
     }
 
-    private var isRecordingAudio = false
+    private var isRecordingAudio = AtomicBoolean(false)
     private var lastNoiseTime = 0L
-    private var lastEventTime = mutableMapOf<SensorType, Long>()
+    private var lastEventTime = ConcurrentHashMap<SensorType, Long>()
     private var microphoneJob: Job? = null
 
     override fun onCreate() {
@@ -130,6 +152,7 @@ class MonitoringService : LifecycleService() {
         significantMotionDriver = SignificantMotionDriver(this)
         audioRecorder = AudioRecorder(this)
         
+        updatePrefValues()
         getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(prefsListener)
 
@@ -140,6 +163,7 @@ class MonitoringService : LifecycleService() {
     }
 
     private fun startHeartbeat() {
+        if (!BuildConfig.DEBUG) return
         heartbeatJob?.cancel()
         heartbeatJob = serviceScope.launch {
             while (isActive) {
@@ -152,8 +176,8 @@ class MonitoringService : LifecycleService() {
     private fun acquireWakeLock() {
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Neruppu:MonitoringWakeLock")
-        wakeLock?.acquire()
-        Log.d("MonitoringService", "WakeLock acquired")
+        wakeLock?.acquire(10 * 60 * 1000L) // 10 minute timeout
+        Log.d("MonitoringService", "WakeLock acquired with 10m timeout")
     }
 
     private fun releaseWakeLock() {
@@ -245,21 +269,17 @@ class MonitoringService : LifecycleService() {
     private fun startMonitoring() {
         Log.d("MonitoringService", "startMonitoring() called - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}")
         
-        val useFront = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-            .getBoolean("use_front_camera", false)
-        val sensitivity = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-            .getFloat("motion_sensitivity", 15f)
-
         // Always bind camera if we are either Monitoring OR UI is active
         if (_isMonitoring.value || _uiActive.value) {
             cameraManager.bindCamera(
                 lifecycleOwner = this,
-                useFrontCamera = useFront,
+                useFrontCamera = useFrontCameraPref,
                 surfaceProvider = cameraManager.currentSurfaceProvider,
+                sensitivity = (sensitivityPref * 30).toInt().coerceIn(5, 30),
                 onMotionDetected = { level ->
                     _motionLevel.value = level
                     _differenceMap.value = cameraManager.getDifferenceMap()?.value
-                    if (_isMonitoring.value && level > sensitivity.toDouble()) {
+                    if (_isMonitoring.value && level > 15.0) { // Using 15% as default percentage trigger
                         Log.d("MonitoringService", "THRESHOLD EXCEEDED: $level")
                         serviceScope.launch {
                             handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
@@ -319,29 +339,35 @@ class MonitoringService : LifecycleService() {
         }
     }
 
-    private var audioBaseline = 0f
-    private val baselineAlpha = 0.05f
+    private var fastBaseline = 0f
+    private var slowBaseline = 0f
 
     private fun startMicrophoneMonitoring() {
         microphoneJob?.cancel()
         
-        val threshold = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-            .getFloat("audio_threshold", 800f)
-
         microphoneJob = serviceScope.launch {
             microphoneDriver.observeNoise()
                 .conflate()
                 .collect { amplitude ->
                     _audioLevel.value = amplitude.toFloat()
                     
-                    if (audioBaseline == 0f) audioBaseline = amplitude.toFloat()
-                    audioBaseline = (1f - baselineAlpha) * audioBaseline + baselineAlpha * amplitude
+                    val amp = amplitude.toFloat()
+                    if (fastBaseline == 0f) {
+                        fastBaseline = amp
+                        slowBaseline = amp
+                    }
+                    
+                    // Dual EMA: Fast adapts in ~1s, Slow adapts in ~200s
+                    fastBaseline = 0.9f * fastBaseline + 0.1f * amp
+                    slowBaseline = 0.995f * slowBaseline + 0.005f * amp
+                    
+                    val spike = fastBaseline - slowBaseline
+                    val threshold = audioThresholdPref // default 800
 
-                    if (_isMonitoring.value && !isRecordingAudio && amplitude > audioBaseline + threshold) {
-                        Log.i("MonitoringService", "AUDIO TRIGGER: $amplitude (Baseline: $audioBaseline, Threshold: $threshold)")
-                        isRecordingAudio = true // SET IMMEDIATELY to prevent multiple triggers
+                    if (_isMonitoring.value && isRecordingAudio.compareAndSet(false, true) && spike > threshold) {
+                        Log.i("MonitoringService", "AUDIO TRIGGER (SPIKE): $spike (Threshold: $threshold)")
                         serviceScope.launch {
-                            val eventId = handleEvent(SensorType.MICROPHONE, "Acoustic event detected: Amplitude $amplitude")
+                            val eventId = handleEvent(SensorType.MICROPHONE, "Acoustic spike detected: $spike")
                             startAudioRecording(eventId)
                         }
                     }
@@ -352,9 +378,7 @@ class MonitoringService : LifecycleService() {
     private fun startAudioRecording(eventId: Long = -1) {
         // isRecordingAudio is already set to true in the trigger block
         
-        // STOP monitoring while recording to avoid mic conflict
-        microphoneJob?.cancel()
-        microphoneJob = null
+        // DO NOT stop monitoring while recording - suppression handled by isRecordingAudio flag
         
         val captureDuration = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .getFloat("audio_capture_duration", 5f).toLong() * 1000
@@ -379,10 +403,8 @@ class MonitoringService : LifecycleService() {
             } catch (e: Exception) {
                 Log.e("MonitoringService", "Audio recording failed", e)
             } finally {
-                isRecordingAudio = false
-                Log.d("MonitoringService", "Resuming noise observation after 1s cooldown...")
-                delay(1000) // Add a cooldown to let the baseline stabilize
-                startMicrophoneMonitoring()
+                isRecordingAudio.set(false)
+                Log.d("MonitoringService", "Resetting audio recording flag.")
             }
         }
     }
@@ -402,11 +424,13 @@ class MonitoringService : LifecycleService() {
         Log.i("MonitoringService", ">>> TRIGGERING EVENT: $type - $description")
         
         // 1. Capture photo bytes if possible
-        val imageBytes: ByteArray? = if (getSharedPreferences("neruppu_prefs", MODE_PRIVATE).getBoolean("save_photos", true)) {
+        val imageBytes: ByteArray? = if (savePhotosPref) {
             try {
                 Log.d("MonitoringService", "Attempting to capture photo for event...")
                 val uri = cameraManager.capturePhoto()
-                uri?.let { contentResolver.openInputStream(it)?.use { stream -> stream.readBytes() } }
+                withContext(Dispatchers.IO) {
+                    uri?.let { contentResolver.openInputStream(it)?.use { stream -> stream.readBytes() } }
+                }
             } catch (e: Exception) {
                 Log.e("MonitoringService", "CRITICAL FAILURE: Photo capture threw exception", e)
                 null
@@ -440,7 +464,11 @@ class MonitoringService : LifecycleService() {
             .setInputData(workData)
             .build()
             
-        WorkManager.getInstance(this).enqueue(notificationWork)
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "security_notification",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            notificationWork
+        )
 
         Log.i("MonitoringService", "EVENT PROCESSED: $type (Local ID: $id)")
         return id

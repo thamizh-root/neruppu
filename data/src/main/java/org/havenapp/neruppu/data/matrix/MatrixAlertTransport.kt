@@ -78,18 +78,23 @@ class MatrixAlertTransport @Inject constructor(
 
     private fun compressJpeg(bytes: ByteArray, targetKb: Int): ByteArray {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return bytes
-        val scaled = if (bitmap.width > 1280) {
-            Bitmap.createScaledBitmap(bitmap, 1280,
-                (1280f * bitmap.height / bitmap.width).toInt(), true)
-        } else bitmap
-        
-        return ByteArrayOutputStream().also { out ->
-            var quality = 85
-            do {
-                out.reset()
-                scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
-                quality -= 10
-            } while (out.size() > targetKb * 1024 && quality > 20)
-        }.toByteArray()
+        return try {
+            val scaled = if (bitmap.width > 1280) {
+                Bitmap.createScaledBitmap(bitmap, 1280,
+                    (1280f * bitmap.height / bitmap.width).toInt(), true)
+                    .also { if (it !== bitmap) bitmap.recycle() }
+            } else bitmap
+            
+            ByteArrayOutputStream().also { out ->
+                var quality = 85
+                do {
+                    out.reset()
+                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+                    quality -= 10
+                } while (out.size() > targetKb * 1024 && quality > 20)
+            }.toByteArray()
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.hilt.navigation.compose.hiltViewModel
 import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
 import org.havenapp.neruppu.core.ui.theme.NeruppuOrange
 import org.havenapp.neruppu.data.camera.CameraManager
@@ -63,6 +64,12 @@ class MainActivity : ComponentActivity() {
         override fun onServiceDisconnected(arg0: ComponentName?) {
             monitoringService.value = null
             isBound = false
+            // Attempt reconnect after delay
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (!isBound) {
+                    bindService(Intent(this@MainActivity, MonitoringService::class.java), this, BIND_AUTO_CREATE)
+                }
+            }, 2000)
         }
     }
 
@@ -88,11 +95,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        bindService(Intent(this, MonitoringService::class.java), connection, BIND_AUTO_CREATE)
     }
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         if (isBound) {
             unbindService(connection)
             isBound = false
@@ -102,11 +112,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        bindService(Intent(this, MonitoringService::class.java), connection, BIND_AUTO_CREATE)
         checkAndRequestPermissions()
         setContent {
             NeruppuTheme {
                 var selectedTab by remember { mutableIntStateOf(0) }
-                val logsViewModel: LogsViewModel = remember { LogsViewModel(sensorRepository) }
+                val logsViewModel: LogsViewModel = hiltViewModel()
                 
                 // Settings state (synced with SharedPreferences)
                 val context = LocalContext.current
@@ -189,6 +200,12 @@ class MainActivity : ComponentActivity() {
                                         accelerometerStable = true, // Simplified
                                         onToggleMonitoring = { 
                                             if (!isMonitoring) {
+                                                val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                if (!hasCamera || !hasAudio) {
+                                                    checkAndRequestPermissions()
+                                                    return@DashboardScreen
+                                                }
                                                 // Start service as foreground when enabling
                                                 val intent = Intent(context, MonitoringService::class.java)
                                                 context.startForegroundService(intent)
@@ -229,7 +246,7 @@ class MainActivity : ComponentActivity() {
                             }
                             1 -> {
                                 LogsScreen(
-                                    events = logsViewModel.events,
+                                    viewModel = logsViewModel,
                                     onClearLogs = { deleteFiles -> logsViewModel.clearLogs(deleteFiles) }
                                 )
                             }

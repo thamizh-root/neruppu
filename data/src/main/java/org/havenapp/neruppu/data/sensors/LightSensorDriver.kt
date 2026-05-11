@@ -39,7 +39,12 @@ class LightSensorDriver(context: Context) {
             trySend(lux)
         }
 
-        val registered = sensorManager.registerListener(listener, lightSensor, SensorManager.SENSOR_DELAY_UI)
+        val registered = sensorManager.registerListener(
+            listener, 
+            lightSensor, 
+            SensorManager.SENSOR_DELAY_UI,
+            2_000_000 // 2 second batch latency
+        )
         Log.d("LightSensorDriver", "Sensor listener registered: $registered")
 
         if (!registered) {

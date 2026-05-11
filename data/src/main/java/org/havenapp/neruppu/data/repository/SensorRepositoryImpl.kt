@@ -4,8 +4,10 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import android.content.Context
 import android.net.Uri
 import org.havenapp.neruppu.data.local.dao.EventDao
@@ -19,13 +21,13 @@ class SensorRepositoryImpl(
     private val context: Context,
     private val eventDao: EventDao
 ) : SensorRepository {
-    override fun getEvents(): Flow<PagingData<Event>> {
+    override fun getEvents(filter: String): Flow<PagingData<Event>> {
         return Pager(
             config = PagingConfig(
                 pageSize = 20,
                 enablePlaceholders = false
             ),
-            pagingSourceFactory = { eventDao.getEventsPaging() }
+            pagingSourceFactory = { eventDao.getEventsPaging(filter) }
         ).flow.map { pagingData ->
             pagingData.map { it.toDomain() }
         }
@@ -42,12 +44,19 @@ class SensorRepositoryImpl(
         }
     }
 
-    override suspend fun clearEvents(deleteFiles: Boolean) {
+    override suspend fun clearEvents(deleteFiles: Boolean) = withContext(Dispatchers.IO) {
         if (deleteFiles) {
-            val events = eventDao.getAllEvents()
-            events.forEach { event ->
-                event.mediaUri?.let { deleteMedia(it) }
-                event.audioUri?.let { deleteMedia(it) }
+            // Stream through DB in pages to avoid OOM
+            var offset = 0
+            val pageSize = 100
+            while (true) {
+                val page = eventDao.getEventsPage(offset, pageSize)
+                if (page.isEmpty()) break
+                page.forEach { event ->
+                    event.mediaUri?.let { deleteMedia(it) }
+                    event.audioUri?.let { deleteMedia(it) }
+                }
+                offset += pageSize
             }
         }
         eventDao.clearEvents()

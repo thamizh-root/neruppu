@@ -9,24 +9,26 @@ class NeruppuApp : Application() {
     override fun onCreate() {
         super.onCreate()
         
-        // StrictMode is highly recommended for identifying UI thread blocks and leaks
-        StrictMode.setThreadPolicy(
-            StrictMode.ThreadPolicy.Builder()
-                .detectDiskReads()
-                .detectDiskWrites()
-                .detectNetwork()
-                .detectAll()
-                .penaltyLog()
-                .build()
-        )
-        StrictMode.setVmPolicy(
-            StrictMode.VmPolicy.Builder()
-                .detectLeakedSqlLiteObjects()
-                .detectLeakedClosableObjects()
-                .detectActivityLeaks()
-                .detectAll()
-                .penaltyLog()
-                .build()
-        )
+        if (BuildConfig.DEBUG) {
+            // StrictMode is highly recommended for identifying UI thread blocks and leaks
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder()
+                    .detectDiskReads()
+                    .detectDiskWrites()
+                    .detectNetwork()
+                    .detectAll()
+                    .penaltyLog()
+                    .build()
+            )
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder()
+                    .detectLeakedSqlLiteObjects()
+                    .detectLeakedClosableObjects()
+                    .detectActivityLeaks()
+                    .detectAll()
+                    .penaltyLog()
+                    .build()
+            )
+        }
     }
 }

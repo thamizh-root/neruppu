@@ -33,8 +33,9 @@ class MotionAnalyzer(
     private val _differenceMap = MutableStateFlow<Bitmap?>(null)
     val differenceMap: StateFlow<Bitmap?> = _differenceMap.asStateFlow()
 
-    // Reusable Bitmap to avoid GC spikes
-    private var outputBitmap: Bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+    // Double buffering to avoid concurrent read/write and StateFlow issues
+    private var frontBitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+    private var backBitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
 
     override fun analyze(image: ImageProxy) {
         val now = System.currentTimeMillis()
@@ -46,12 +47,13 @@ class MotionAnalyzer(
         }
         lastAnalysisTime = now
 
-        val plane = image.planes[0]
-        val buffer = plane.buffer
+        // Extract ALL needed data FIRST
         val width = image.width
         val height = image.height
+        val plane = image.planes[0]
         val rowStride = plane.rowStride
         val pixelStride = plane.pixelStride
+        val buffer = plane.buffer
 
         val size = width * height
         if (referenceBuffer == null || referenceBuffer!!.size != size) {
@@ -98,9 +100,10 @@ class MotionAnalyzer(
                     outPixels[y * outWidth + x] = color
                     
                     // Update reference buffer with a slow adaptive rate
-                    if (diff < sensitivity) {
-                        referenceBuffer!![refIndex] = currentVal.toByte()
-                    }
+                    // Improved: slow global adaptive update (5% blend) for all pixels
+                    val adaptRate = 0.05f
+                    val blended = (adaptRate * currentVal + (1f - adaptRate) * referenceVal).toInt()
+                    referenceBuffer!![refIndex] = blended.toByte()
                     
                     totalSampled++
                 }
@@ -110,19 +113,44 @@ class MotionAnalyzer(
         val motionLevel = if (totalSampled > 0) (changedPixels.toDouble() / totalSampled) * 100.0 else 0.0
         onMotionDetected(motionLevel)
 
-        // 4. Update the reusable Bitmap and emit via StateFlow
-        outputBitmap.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
-        _differenceMap.value = outputBitmap
+        // 4. Update the back bitmap and swap
+        // Safe check to ensure we don't write to a recycled bitmap
+        if (!backBitmap.isRecycled) {
+            backBitmap.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
+            _differenceMap.value = backBitmap
+            
+            val temp = frontBitmap
+            frontBitmap = backBitmap
+            backBitmap = temp
+        }
 
         image.close()
     }
 
+    fun cleanup() {
+        // Clear StateFlow first to stop UI from trying to draw
+        _differenceMap.value = null
+        if (!frontBitmap.isRecycled) frontBitmap.recycle()
+        if (!backBitmap.isRecycled) backBitmap.recycle()
+        referenceBuffer = null
+    }
+
     private fun fillBuffer(src: ByteBuffer, dst: ByteArray, w: Int, h: Int, rowStride: Int, pixelStride: Int) {
+        if (pixelStride == 1 && rowStride == w) {
+            // Contiguous — bulk copy
+            src.get(dst, 0, dst.size)
+            return
+        }
+        // Strided — row-by-row bulk copy
         for (y in 0 until h) {
-            for (x in 0 until w) {
-                val index = y * rowStride + x * pixelStride
-                if (index < src.capacity()) {
-                    dst[y * w + x] = src.get(index)
+            val srcPos = y * rowStride
+            val dstPos = y * w
+            if (pixelStride == 1) {
+                src.position(srcPos)
+                src.get(dst, dstPos, w.coerceAtMost(dst.size - dstPos))
+            } else {
+                for (x in 0 until w) {
+                    dst[dstPos + x] = src.get(srcPos + x * pixelStride)
                 }
             }
         }

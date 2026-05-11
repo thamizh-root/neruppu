@@ -95,6 +95,7 @@ class CameraManager(private val context: Context) {
         lifecycleOwner: LifecycleOwner,
         useFrontCamera: Boolean,
         surfaceProvider: Preview.SurfaceProvider?,
+        sensitivity: Int = 15,
         onMotionDetected: (Double) -> Unit
     ) {
         if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner && currentSurfaceProvider == surfaceProvider) {
@@ -124,7 +125,7 @@ class CameraManager(private val context: Context) {
                     .build()
                 useCases.add(imageCapture!!)
 
-                motionAnalyzer = MotionAnalyzer(onMotionDetected)
+                motionAnalyzer = MotionAnalyzer(onMotionDetected, sensitivity)
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setResolutionSelector(resolutionSelector)
@@ -178,7 +179,10 @@ class CameraManager(private val context: Context) {
             currentLifecycleOwner = null
             imageCapture = null
             preview = null
+            imageAnalysis?.clearAnalyzer()
             imageAnalysis = null
+            motionAnalyzer?.cleanup()
+            motionAnalyzer = null
             Log.d("CameraManager", "Camera system released")
         }
     }

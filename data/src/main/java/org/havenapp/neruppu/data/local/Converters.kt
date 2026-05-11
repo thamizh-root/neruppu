@@ -17,7 +17,9 @@ class Converters {
 
     @TypeConverter
     fun fromSensorType(value: String?): SensorType? {
-        return value?.let { SensorType.valueOf(it) }
+        return value?.let {
+            runCatching { SensorType.valueOf(it) }.getOrElse { SensorType.ACCELEROMETER }
+        }
     }
 
     @TypeConverter

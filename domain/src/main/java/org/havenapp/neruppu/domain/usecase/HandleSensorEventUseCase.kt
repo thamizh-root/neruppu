@@ -16,6 +16,7 @@ class HandleSensorEventUseCase @Inject constructor(
     private val sensorRepository: SensorRepository
 ) {
     suspend fun execute(sensorEvent: SensorEvent): Result<Long> = runCatching {
+        // println instead of Log.d because domain is a pure JVM library
         println("Neruppu: Executing Use Case for ${sensorEvent.sensorType}")
 
         // 1. If event has media, save locally first
