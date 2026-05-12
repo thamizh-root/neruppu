@@ -67,3 +67,6 @@ To receive alerts on your primary phone or computer:
 You can try Neruppu immediately by downloading the latest `.apk` from the **Releases** tab.
 
 Simply install the app on your Android device and start guarding your environment. We highly value your feedback—whether it's constructive criticism or appreciation, your input is vital to making Neruppu a better tool for everyone.
+
+## License
+The GNU GPLv3 also lets people do almost anything they want with your project, except distributing closed source versions. See [LICENSE](LICENSE) for the full text.

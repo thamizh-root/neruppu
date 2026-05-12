@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.hilt.navigation.compose.hiltViewModel
 import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
 import org.havenapp.neruppu.core.ui.theme.NeruppuOrange
 import org.havenapp.neruppu.data.camera.CameraManager
@@ -63,6 +64,12 @@ class MainActivity : ComponentActivity() {
         override fun onServiceDisconnected(arg0: ComponentName?) {
             monitoringService.value = null
             isBound = false
+            // Attempt reconnect after delay
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (!isBound) {
+                    bindService(Intent(this@MainActivity, MonitoringService::class.java), this, BIND_AUTO_CREATE)
+                }
+            }, 2000)
         }
     }
 
@@ -88,11 +95,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        bindService(Intent(this, MonitoringService::class.java), connection, BIND_AUTO_CREATE)
     }
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         if (isBound) {
             unbindService(connection)
             isBound = false
@@ -102,11 +112,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        bindService(Intent(this, MonitoringService::class.java), connection, BIND_AUTO_CREATE)
         checkAndRequestPermissions()
         setContent {
             NeruppuTheme {
                 var selectedTab by remember { mutableIntStateOf(0) }
-                val logsViewModel: LogsViewModel = remember { LogsViewModel(sensorRepository) }
+                val logsViewModel: LogsViewModel = hiltViewModel()
                 
                 // Settings state (synced with SharedPreferences)
                 val context = LocalContext.current
@@ -173,63 +184,70 @@ class MainActivity : ComponentActivity() {
                     Box(modifier = Modifier.padding(paddingValues)) {
                         when (selectedTab) {
                             0 -> {
-                                val service = monitoringService.value
-                                if (service != null) {
-                                    val isMonitoring by service.isMonitoring.collectAsState()
-                                    val motionLevel by service.motionLevel.collectAsState()
-                                    val audioLevel by service.audioLevel.collectAsState()
-                                    val lightLevel by service.lightLevel.collectAsState()
-                                    val differenceMap by service.differenceMap.collectAsState()
+                                    val context = LocalContext.current
+                                    val service = monitoringService.value
+                                    if (service != null) {
+                                        val isMonitoring by service.isMonitoring.collectAsState()
+                                        val motionLevel by service.motionLevel.collectAsState()
+                                        val audioLevel by service.audioLevel.collectAsState()
+                                        val lightLevel by service.lightLevel.collectAsState()
+                                        val differenceMap by service.differenceMap.collectAsState()
 
-                                    DashboardScreen(
-                                        isMonitoring = isMonitoring,
-                                        motionLevel = motionLevel,
-                                        audioLevel = audioLevel / 50f, // Scale for display
-                                        lightLevel = lightLevel,
-                                        accelerometerStable = true, // Simplified
-                                        onToggleMonitoring = { 
-                                            if (!isMonitoring) {
-                                                // Start service as foreground when enabling
-                                                val intent = Intent(context, MonitoringService::class.java)
-                                                context.startForegroundService(intent)
-                                            }
-                                            service.toggleMonitoring() 
-                                        },
-                                        useFrontCamera = useFrontCamera,
-                                        differenceMap = differenceMap,
-                                        onBindCamera = { previewView, _ ->
-                                            service.setPreviewSurface(previewView.surfaceProvider)
-                                        }
-                                    )
-                                    
-                                    val lifecycleOwner = LocalLifecycleOwner.current
-                                    DisposableEffect(lifecycleOwner) {
-                                        val observer = LifecycleEventObserver { _, event ->
-                                            when (event) {
-                                                Lifecycle.Event.ON_RESUME -> service.setUiActive(true)
-                                                Lifecycle.Event.ON_PAUSE -> {
-                                                    service.setUiActive(false)
-                                                    service.setPreviewSurface(null)
+                                        DashboardScreen(
+                                            isMonitoring = isMonitoring,
+                                            motionLevel = motionLevel,
+                                            audioLevel = audioLevel,
+                                            lightLevel = lightLevel,
+                                            accelerometerStable = true,
+                                            onToggleMonitoring = { 
+                                                if (!isMonitoring) {
+                                                    val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                    val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                    if (!hasCamera || !hasAudio) {
+                                                        checkAndRequestPermissions()
+                                                        return@DashboardScreen
+                                                    }
+                                                    val intent = Intent(context, MonitoringService::class.java)
+                                                    context.startForegroundService(intent)
                                                 }
-                                                else -> {}
+                                                service.toggleMonitoring() 
+                                            },
+                                            useFrontCamera = useFrontCamera,
+                                            differenceMap = differenceMap,
+                                            onBindCamera = { previewView, _ ->
+                                                service.setPreviewSurface(previewView.surfaceProvider)
+                                            }
+                                        )
+                                        
+                                        val lifecycleOwner = LocalLifecycleOwner.current
+                                        DisposableEffect(lifecycleOwner) {
+                                            service.setUiActive(true)
+                                            val observer = LifecycleEventObserver { _, event ->
+                                                when (event) {
+                                                    Lifecycle.Event.ON_RESUME -> service.setUiActive(true)
+                                                    Lifecycle.Event.ON_PAUSE -> {
+                                                        service.setUiActive(false)
+                                                        service.setPreviewSurface(null)
+                                                    }
+                                                    else -> {}
+                                                }
+                                            }
+                                            lifecycleOwner.lifecycle.addObserver(observer)
+                                            onDispose {
+                                                lifecycleOwner.lifecycle.removeObserver(observer)
+                                                service.setUiActive(false)
+                                                service.setPreviewSurface(null)
                                             }
                                         }
-                                        lifecycleOwner.lifecycle.addObserver(observer)
-                                        onDispose {
-                                            lifecycleOwner.lifecycle.removeObserver(observer)
-                                            service.setUiActive(false)
-                                            service.setPreviewSurface(null)
+                                    } else {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(color = NeruppuOrange)
                                         }
                                     }
-                                } else {
-                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator()
-                                    }
-                                }
                             }
                             1 -> {
                                 LogsScreen(
-                                    events = logsViewModel.events,
+                                    viewModel = logsViewModel,
                                     onClearLogs = { deleteFiles -> logsViewModel.clearLogs(deleteFiles) }
                                 )
                             }

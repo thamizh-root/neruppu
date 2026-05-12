@@ -1,20 +1,29 @@
 package org.havenapp.neruppu.data.camera.analyzer
 
+import android.graphics.Bitmap
 import androidx.camera.core.ImageProxy
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.nio.ByteBuffer
 
 class MotionAnalyzerTest {
 
+    @Before
+    fun setup() {
+        mockkStatic(Bitmap::class)
+        every { Bitmap.createBitmap(any<Int>(), any<Int>(), any<Bitmap.Config>()) } returns mockk(relaxed = true)
+    }
+
     @Test
     fun `test motion detection calculation`() {
         var detectedLevel = 0.0
-        val analyzer = MotionAnalyzer { level ->
+        val analyzer = MotionAnalyzer(onMotionDetected = { level ->
             detectedLevel = level
-        }
+        })
 
         // Mock ImageProxy
         val image1 = mockk<ImageProxy>(relaxed = true)
@@ -31,6 +40,8 @@ class MotionAnalyzerTest {
         every { plane1.pixelStride } returns 1
         
         analyzer.analyze(image1)
+
+        Thread.sleep(250) // Wait for frame interval (200ms) to pass to avoid frame skipping
 
         val image2 = mockk<ImageProxy>(relaxed = true)
         val plane2 = mockk<ImageProxy.PlaneProxy>()

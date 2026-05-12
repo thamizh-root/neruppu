@@ -14,16 +14,21 @@ class MatrixConfigStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) : MatrixConfigRepository {
     private val prefs by lazy {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "neruppu_matrix_config",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        runCatching {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                "neruppu_matrix_config",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }.getOrElse {
+            Log.e("MatrixConfigStore", "Encrypted prefs failed, falling back to plain prefs", it)
+            context.getSharedPreferences("neruppu_matrix_fallback", Context.MODE_PRIVATE)
+        }
     }
 
     override var homeserverUrl: String
@@ -39,11 +44,7 @@ class MatrixConfigStore @Inject constructor(
         set(value) = prefs.edit().putString(KEY_TOKEN, value).apply()
 
     override val isComplete: Boolean
-        get() {
-            val complete = homeserverUrl.isNotBlank() && roomId.isNotBlank() && accessToken.isNotBlank()
-            Log.d("MatrixConfigStore", "isComplete: $complete (URL: ${homeserverUrl.isNotBlank()}, Room: ${roomId.isNotBlank()}, Token: ${accessToken.isNotBlank()})")
-            return complete
-        }
+        get() = homeserverUrl.isNotBlank() && roomId.isNotBlank() && accessToken.isNotBlank()
 
     override fun clear() = prefs.edit().clear().apply()
 
