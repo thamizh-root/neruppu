@@ -37,9 +37,10 @@ class MatrixApiClient @Inject constructor(
     // Send a plain text message
     suspend fun sendTextEvent(
         message: String,
-        txnId: String = System.currentTimeMillis().toString()
+        txnId: String = java.util.UUID.randomUUID().toString()
     ): Result<Unit> = runCatching {
-        val url = "${configStore.homeserverUrl}/_matrix/client/v3" +
+        val baseUrl = configStore.homeserverUrl.trimEnd('/')
+        val url = "$baseUrl/_matrix/client/v3" +
                   "/rooms/${configStore.roomId}/send/m.room.message/$txnId"
         val response: HttpResponse = client.put(url) {
             header("Authorization", "Bearer ${configStore.accessToken}")
@@ -50,37 +51,73 @@ class MatrixApiClient @Inject constructor(
             })
         }
         if (response.status.value !in 200..299) {
+            val errorBody = response.body<String>()
+            Log.e("MatrixApiClient", "Send text failed with status ${response.status}: $errorBody")
             error("Failed to send text event: ${response.status}")
         }
     }
 
-    // Upload media -> returns mxc:// URI
+    // Modern Upload Flow (Matrix v1.7+)
+    // Step 1: Create a media URI
+    private suspend fun createMediaUri(): Result<String> = runCatching {
+        val baseUrl = configStore.homeserverUrl.trimEnd('/')
+        val url = "$baseUrl/_matrix/media/v1/create"
+        val response: HttpResponse = client.post(url) {
+            header("Authorization", "Bearer ${configStore.accessToken}")
+            contentType(ContentType.Application.Json)
+        }
+        if (response.status.value !in 200..299) {
+            val errorBody = response.body<String>()
+            Log.e("MatrixApiClient", "Create media URI failed with status ${response.status}: $errorBody")
+            error("Failed to create media URI: ${response.status}")
+        }
+        val responseBody = response.body<JsonObject>()
+        responseBody["content_uri"]?.jsonPrimitive?.content
+            ?: error("No content_uri in create response")
+    }
+
+    // Step 2: Upload content to the reserved URI
     suspend fun uploadMedia(
         bytes: ByteArray,
         mimeType: String,
         fileName: String
     ): Result<String> = runCatching {
-        val url = "${configStore.homeserverUrl}/_matrix/media/v3/upload?filename=$fileName"
-        val response: HttpResponse = client.post(url) {
+        val mxcUri = createMediaUri().getOrThrow()
+        
+        // mxc://serverName/mediaId
+        val uriParts = mxcUri.removePrefix("mxc://").split("/")
+        if (uriParts.size < 2) error("Invalid MXC URI: $mxcUri")
+        
+        val serverName = uriParts[0]
+        val mediaId = uriParts[1]
+        
+        val baseUrl = configStore.homeserverUrl.trimEnd('/')
+        val encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8")
+        val url = "$baseUrl/_matrix/media/v3/upload/$serverName/$mediaId?filename=$encodedFileName"
+        
+        Log.d("MatrixApiClient", "Uploading media to: $url")
+        val response: HttpResponse = client.put(url) {
             header("Authorization", "Bearer ${configStore.accessToken}")
             contentType(ContentType.parse(mimeType))
             setBody(bytes)
         }
         if (response.status.value !in 200..299) {
+            val errorBody = response.body<String>()
+            Log.e("MatrixApiClient", "Upload failed with status ${response.status}: $errorBody")
             error("Failed to upload media: ${response.status}")
         }
-        val responseBody = response.body<JsonObject>()
-        responseBody["content_uri"]?.jsonPrimitive?.content
-            ?: error("No content_uri in upload response")
+        
+        mxcUri
     }
 
     // Send image event with mxc:// URI
     suspend fun sendImageEvent(
         mxcUri: String,
         caption: String,
-        txnId: String = System.currentTimeMillis().toString()
+        txnId: String = java.util.UUID.randomUUID().toString()
     ): Result<Unit> = runCatching {
-        val url = "${configStore.homeserverUrl}/_matrix/client/v3" +
+        val baseUrl = configStore.homeserverUrl.trimEnd('/')
+        val url = "$baseUrl/_matrix/client/v3" +
                   "/rooms/${configStore.roomId}/send/m.room.message/$txnId"
         val response: HttpResponse = client.put(url) {
             header("Authorization", "Bearer ${configStore.accessToken}")
@@ -95,6 +132,8 @@ class MatrixApiClient @Inject constructor(
             })
         }
         if (response.status.value !in 200..299) {
+            val errorBody = response.body<String>()
+            Log.e("MatrixApiClient", "Send image failed with status ${response.status}: $errorBody")
             error("Failed to send image event: ${response.status}")
         }
     }
@@ -103,9 +142,10 @@ class MatrixApiClient @Inject constructor(
     suspend fun sendAudioEvent(
         mxcUri: String,
         caption: String,
-        txnId: String = System.currentTimeMillis().toString()
+        txnId: String = java.util.UUID.randomUUID().toString()
     ): Result<Unit> = runCatching {
-        val url = "${configStore.homeserverUrl}/_matrix/client/v3" +
+        val baseUrl = configStore.homeserverUrl.trimEnd('/')
+        val url = "$baseUrl/_matrix/client/v3" +
                   "/rooms/${configStore.roomId}/send/m.room.message/$txnId"
         val response: HttpResponse = client.put(url) {
             header("Authorization", "Bearer ${configStore.accessToken}")
@@ -120,16 +160,21 @@ class MatrixApiClient @Inject constructor(
             })
         }
         if (response.status.value !in 200..299) {
+            val errorBody = response.body<String>()
+            Log.e("MatrixApiClient", "Send audio failed with status ${response.status}: $errorBody")
             error("Failed to send audio event: ${response.status}")
         }
     }
 
     suspend fun testConnection(): Result<Unit> = runCatching {
-        val url = "${configStore.homeserverUrl}/_matrix/client/v3/account/whoami"
+        val baseUrl = configStore.homeserverUrl.trimEnd('/')
+        val url = "$baseUrl/_matrix/client/v3/account/whoami"
         val response: HttpResponse = client.get(url) {
             header("Authorization", "Bearer ${configStore.accessToken}")
         }
         if (response.status.value !in 200..299) {
+            val errorBody = response.body<String>()
+            Log.e("MatrixApiClient", "Test connection failed with status ${response.status}: $errorBody")
             error("Connection failed: ${response.status}")
         }
     }
