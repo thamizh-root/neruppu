@@ -113,14 +113,14 @@ class MonitoringService : LifecycleService() {
     private var savePhotosPref = true
     private var sensitivityPref = 15f
     private var useFrontCameraPref = false
-    private var audioThresholdPref = 800f
+    private var audioThresholdPref = 200f
 
     private fun updatePrefValues() {
         val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
         savePhotosPref = prefs.getBoolean("save_photos", true)
         sensitivityPref = prefs.getFloat("motion_sensitivity", 15f)
         useFrontCameraPref = prefs.getBoolean("use_front_camera", false)
-        audioThresholdPref = prefs.getFloat("audio_threshold", 800f)
+        audioThresholdPref = prefs.getFloat("audio_threshold", 200f)
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -362,7 +362,7 @@ class MonitoringService : LifecycleService() {
                     slowBaseline = 0.995f * slowBaseline + 0.005f * amp
                     
                     val spike = fastBaseline - slowBaseline
-                    val threshold = audioThresholdPref // default 800
+                    val threshold = audioThresholdPref // default 200
 
                     if (_isMonitoring.value && isRecordingAudio.compareAndSet(false, true) && spike > threshold) {
                         Log.i("MonitoringService", "AUDIO TRIGGER (SPIKE): $spike (Threshold: $threshold)")

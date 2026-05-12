@@ -1,0 +1,65 @@
+# ==========================================
+# .aiexclude - AI Agent Indexing Restrictions
+# ==========================================
+# This file tells the Android Studio AI Agent which files to ignore.
+# Goal: Reduce token usage, increase speed, and avoid stale context.
+
+# --- Build & Generated Artifacts ---
+build/
+**/build/
+bin/
+obj/
+out/
+*.class
+*.dex
+*.apk
+*.aar
+*.jar
+
+# --- IDE & Tooling Caches ---
+.gradle/
+.idea/
+.kotlin/
+*.iml
+*.iws
+*.ipr
+capture/
+captures/
+**/captures/
+
+# --- Secrets & Sensitive Info ---
+local.properties
+google-services.json
+**/google-services.json
+*.jks
+*.keystore
+*.p12
+*.key
+.env*
+secrets.xml
+
+# --- Large Binary Assets & Data ---
+*.sqlite
+*.db
+*.csv
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp4
+*.mp3
+*.wav
+
+# --- Project Specifics ---
+# Exclude the AI's own history and workspace artifacts
+.artifacts/
+indexingStamp/
+project-model-cache/
+history-storage/
+external_build_system/
+build-analyzer-history-data/
+
+# --- Documentation (Optional) ---
+# Uncomment if you want the AI to ignore large binary docs
+# docs/assets/

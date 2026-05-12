@@ -316,14 +316,14 @@ fun AudioPlayer(uriString: String) {
     var currentPosition by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            while (isPlaying && mediaPlayer?.isPlaying == true) {
-                currentPosition = mediaPlayer?.currentPosition ?: 0
-                delay(100)
+        while (isPlaying) {
+            val mp = mediaPlayer
+            if (mp != null && mp.isPlaying) {
+                currentPosition = mp.currentPosition
+            } else if (mp != null && !mp.isPlaying) {
+                break
             }
-            if (mediaPlayer?.isPlaying == false) {
-                isPlaying = false
-            }
+            delay(100)
         }
     }
 
@@ -366,11 +366,9 @@ fun AudioPlayer(uriString: String) {
                             mediaPlayer = MediaPlayer().apply {
                                 setDataSource(context, contentUri)
                                 setOnPreparedListener { mp ->
-                                    if (mediaPlayer != null) {
-                                        duration = mp.duration
-                                        mp.start()
-                                        isPlaying = true
-                                    }
+                                    duration = mp.duration
+                                    mp.start()
+                                    isPlaying = true
                                 }
                                 setOnCompletionListener {
                                     isPlaying = false

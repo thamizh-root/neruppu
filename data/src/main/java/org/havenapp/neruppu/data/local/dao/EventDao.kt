@@ -10,7 +10,15 @@ import org.havenapp.neruppu.data.local.entity.EventEntity
 
 @Dao
 interface EventDao {
-    @Query("SELECT * FROM events WHERE (:filter = 'All' OR sensorType = :filter) ORDER BY timestamp DESC")
+    @Query("""
+        SELECT * FROM events WHERE (
+            :filter = 'All'
+            OR (:filter = 'Motion' AND sensorType IN ('CAMERA_MOTION', 'ACCELEROMETER'))
+            OR (:filter = 'Sound'  AND sensorType = 'MICROPHONE')
+            OR (:filter = 'Light'  AND sensorType = 'LIGHT')
+            OR sensorType = :filter
+        ) ORDER BY timestamp DESC
+    """)
     fun getEventsPaging(filter: String): PagingSource<Int, EventEntity>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

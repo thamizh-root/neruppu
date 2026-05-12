@@ -79,6 +79,22 @@ class TelegramApiClient @Inject constructor(
         }
     }
 
+    suspend fun sendVoice(bytes: ByteArray, caption: String): Result<Unit> = runCatching {
+        val response: HttpResponse = client.post("$baseUrl/sendVoice") {
+            val formData = formData {
+                append("chat_id", configStore.chatId)
+                append("caption", caption)
+                append("parse_mode", "HTML")
+                append("voice", bytes, Headers.build {
+                    append(HttpHeaders.ContentType, "audio/mp4")
+                    append(HttpHeaders.ContentDisposition, "filename=\"alert.mp4\"")
+                })
+            }
+            setBody(MultiPartFormDataContent(formData))
+        }
+        if (response.status.value !in 200..299) error("Telegram sendVoice failed: ${response.status}")
+    }
+
     suspend fun testConnection(): Result<Unit> = runCatching {
         val response: HttpResponse = client.get("$baseUrl/getMe")
         if (response.status.value !in 200..299) {

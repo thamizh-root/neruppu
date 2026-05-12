@@ -29,7 +29,7 @@ class MatrixApiClient @Inject constructor(
     private val client = HttpClient(Android) {
         install(ContentNegotiation) { json() }
         install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
+            requestTimeoutMillis = 120_000
             connectTimeoutMillis = 10_000
         }
     }

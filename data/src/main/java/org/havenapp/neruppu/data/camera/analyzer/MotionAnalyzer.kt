@@ -47,6 +47,17 @@ class MotionAnalyzer(
         }
         lastAnalysisTime = now
 
+        // Capture current state locally to avoid race conditions with cleanup()
+        val currentRef = referenceBuffer
+        val currentFront = frontBitmap
+        val currentBack = backBitmap
+
+        // If bitmaps are already recycled, we shouldn't continue
+        if (currentFront.isRecycled || currentBack.isRecycled) {
+            image.close()
+            return
+        }
+
         // Extract ALL needed data FIRST
         val width = image.width
         val height = image.height
@@ -56,9 +67,11 @@ class MotionAnalyzer(
         val buffer = plane.buffer
 
         val size = width * height
-        if (referenceBuffer == null || referenceBuffer!!.size != size) {
-            referenceBuffer = ByteArray(size)
-            fillBuffer(buffer, referenceBuffer!!, width, height, rowStride, pixelStride)
+        var ref = currentRef
+        if (ref == null || ref.size != size) {
+            val newRef = ByteArray(size)
+            fillBuffer(buffer, newRef, width, height, rowStride, pixelStride)
+            referenceBuffer = newRef
             image.close()
             return
         }
@@ -79,7 +92,7 @@ class MotionAnalyzer(
                 if (srcIndex < buffer.capacity()) {
                     val currentVal = buffer.get(srcIndex).toInt() and 0xFF
                     val refIndex = srcY * width + srcX
-                    val referenceVal = referenceBuffer!![refIndex].toInt() and 0xFF
+                    val referenceVal = ref[refIndex].toInt() and 0xFF
                     
                     val diff = abs(currentVal - referenceVal)
                     
@@ -103,7 +116,7 @@ class MotionAnalyzer(
                     // Improved: slow global adaptive update (5% blend) for all pixels
                     val adaptRate = 0.05f
                     val blended = (adaptRate * currentVal + (1f - adaptRate) * referenceVal).toInt()
-                    referenceBuffer!![refIndex] = blended.toByte()
+                    ref[refIndex] = blended.toByte()
                     
                     totalSampled++
                 }
@@ -114,14 +127,14 @@ class MotionAnalyzer(
         onMotionDetected(motionLevel)
 
         // 4. Update the back bitmap and swap
-        // Safe check to ensure we don't write to a recycled bitmap
-        if (!backBitmap.isRecycled) {
-            backBitmap.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
-            _differenceMap.value = backBitmap
+        // Safe check using the local capture to ensure we don't write to a recycled bitmap
+        if (!currentBack.isRecycled) {
+            currentBack.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
+            _differenceMap.value = currentBack
             
-            val temp = frontBitmap
-            frontBitmap = backBitmap
-            backBitmap = temp
+            // Swap references safely
+            frontBitmap = currentBack
+            backBitmap = currentFront
         }
 
         image.close()
@@ -130,8 +143,8 @@ class MotionAnalyzer(
     fun cleanup() {
         // Clear StateFlow first to stop UI from trying to draw
         _differenceMap.value = null
-        if (!frontBitmap.isRecycled) frontBitmap.recycle()
-        if (!backBitmap.isRecycled) backBitmap.recycle()
+        // Removed manual recycle() to avoid race conditions with Compose UI's drawing thread.
+        // These are small bitmaps (240p) and will be handled by GC safely once references are gone.
         referenceBuffer = null
     }
 

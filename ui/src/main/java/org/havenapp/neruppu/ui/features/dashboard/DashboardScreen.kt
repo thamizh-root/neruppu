@@ -86,6 +86,20 @@ fun DashboardScreen(
                             letterSpacing = 1.2.sp,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
+                        
+                        PixelPerfectDashboard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp)),
+                            motionLevel = motionLevel.toFloat(),
+                            audioLevel = (audioLevel / 500f).coerceIn(0f, 1f),
+                            lightLevel = (lightLevel / 1000f).coerceIn(0f, 1f)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         SensorGrid(
                             motionLevel = motionLevel,
                             audioLevel = audioLevel,
@@ -302,8 +316,8 @@ fun SensorGrid(
             SensorCard(
                 icon = Icons.Default.Mic,
                 name = "Sound",
-                value = "${audioLevel.toInt()} dB",
-                progress = (audioLevel / 100).coerceIn(0f, 1f),
+                value = "${audioLevel.toInt()} RMS",
+                progress = (audioLevel / 500f).coerceIn(0f, 1f),
                 color = NeruppuBlue,
                 modifier = Modifier.weight(1f)
             )

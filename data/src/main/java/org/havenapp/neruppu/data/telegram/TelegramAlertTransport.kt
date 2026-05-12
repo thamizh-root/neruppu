@@ -50,7 +50,7 @@ class TelegramAlertTransport @Inject constructor(
                         } else bytes
                         apiClient.sendPhoto(uploadBytes, textMsg).getOrThrow()
                     } else {
-                        apiClient.sendAudio(bytes, textMsg).getOrThrow()
+                        apiClient.sendVoice(bytes, textMsg).getOrThrow()
                     }
                 }
             }
