@@ -19,6 +19,10 @@ class MatrixAlertTransport @Inject constructor(
     override val isConfigured: Boolean get() = configStore.isComplete
 
     override suspend fun send(payload: AlertPayload): Result<Unit> = runCatching {
+        if (!isConfigured) {
+            Log.d("MatrixAlertTransport", "Transport not configured, skipping alert")
+            return Result.success(Unit)
+        }
         Log.d("MatrixAlertTransport", "Sending alert: $payload")
         when (payload) {
             is AlertPayload.TextAlert -> {
@@ -52,10 +56,12 @@ class MatrixAlertTransport @Inject constructor(
                     .getOrThrow()
 
                 Log.d("MatrixAlertTransport", "Media uploaded. MXC URI: $mxcUri. Sending media event...")
-                if (file.mimeType == "image/jpeg") {
-                    apiClient.sendImageEvent(mxcUri, textMsg).getOrThrow()
+                if (file.mimeType.startsWith("image/")) {
+                    apiClient.sendImageEvent(mxcUri, textMsg, file.mimeType).getOrThrow()
+                } else if (file.mimeType.startsWith("audio/")) {
+                    apiClient.sendAudioEvent(mxcUri, textMsg, file.mimeType).getOrThrow()
                 } else {
-                    apiClient.sendAudioEvent(mxcUri, textMsg).getOrThrow()
+                    Log.w("MatrixAlertTransport", "Unsupported media type: ${file.mimeType}")
                 }
                 Log.d("MatrixAlertTransport", "Media event sent successfully.")
             }
