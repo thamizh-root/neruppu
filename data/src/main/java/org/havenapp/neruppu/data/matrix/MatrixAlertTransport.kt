@@ -1,11 +1,8 @@
 package org.havenapp.neruppu.data.matrix
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Log
-import dagger.hilt.android.qualifiers.ApplicationContext
 import org.havenapp.neruppu.domain.model.AlertPayload
 import org.havenapp.neruppu.domain.transport.AlertTransport
 import java.io.ByteArrayOutputStream
@@ -16,8 +13,7 @@ import javax.inject.Singleton
 @Singleton
 class MatrixAlertTransport @Inject constructor(
     private val apiClient: MatrixApiClient,
-    private val configStore: MatrixConfigStore,
-    @ApplicationContext private val context: Context
+    private val configStore: MatrixConfigStore
 ) : AlertTransport {
 
     override val isConfigured: Boolean get() = configStore.isComplete
@@ -41,12 +37,7 @@ class MatrixAlertTransport @Inject constructor(
                 // Read media bytes
                 val file = payload.mediaFile
                 Log.d("MatrixAlertTransport", "Reading media file: ${file.absolutePath}")
-                val bytes: ByteArray = if (file.absolutePath.startsWith("content://")) {
-                    context.contentResolver.openInputStream(Uri.parse(file.absolutePath))
-                        ?.use { it.readBytes() } ?: error("Failed to read content URI")
-                } else {
-                    File(file.absolutePath).readBytes()
-                }
+                val bytes: ByteArray = File(file.absolutePath).readBytes()
 
                 // Compress image if needed (max 800KB)
                 val uploadBytes = if (file.mimeType == "image/jpeg" && bytes.size > 800_000) {
@@ -78,23 +69,27 @@ class MatrixAlertTransport @Inject constructor(
 
     private fun compressJpeg(bytes: ByteArray, targetKb: Int): ByteArray {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return bytes
+        var scaled: Bitmap? = null
         return try {
-            val scaled = if (bitmap.width > 1280) {
+            scaled = if (bitmap.width > 1280) {
                 Bitmap.createScaledBitmap(bitmap, 1280,
                     (1280f * bitmap.height / bitmap.width).toInt(), true)
-                    .also { if (it !== bitmap) bitmap.recycle() }
-            } else bitmap
+            } else null
+            
+            val targetBitmap = scaled ?: bitmap
             
             ByteArrayOutputStream().also { out ->
                 var quality = 85
                 do {
                     out.reset()
-                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+                    targetBitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
                     quality -= 10
-                } while (out.size() > targetKb * 1024 && quality > 20)
+                    if (out.size() <= targetKb * 1024) break
+                } while (quality > 20)
             }.toByteArray()
         } finally {
-            if (!bitmap.isRecycled) bitmap.recycle()
+            scaled?.recycle()
+            bitmap.recycle()
         }
     }
 }

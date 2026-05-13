@@ -11,20 +11,33 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.havenapp.neruppu.data.audio.AudioRecordFactory
+import org.havenapp.neruppu.data.audio.DefaultAudioRecordFactory
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-class MicrophoneDriver {
+class MicrophoneDriver(
+    private val audioRecordFactory: AudioRecordFactory = DefaultAudioRecordFactory()
+) {
     private val sampleRate = 16000 // Reduced from 44100 for battery optimization
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-    private val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-    private val silenceFloor = 50 // below this = silence, skip emit
+    private val silenceFloor = 20 // Lowered from 50 for better sensitivity
+
+    private fun getBufferSize(): Int {
+        return try {
+            AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+        } catch (e: Exception) {
+            // Fallback for tests if not mocked
+            2048
+        }
+    }
 
     @SuppressLint("MissingPermission")
     fun observeNoise(): Flow<Int> = callbackFlow {
+        val bufferSize = getBufferSize().coerceAtLeast(1024)
         val recorder = try {
-            AudioRecord(
+            audioRecordFactory.create(
                 MediaRecorder.AudioSource.MIC,
                 sampleRate,
                 channelConfig,
@@ -50,7 +63,13 @@ class MicrophoneDriver {
         val job = launch(Dispatchers.IO) {
             var silenceCount = 0
             while (isActive) {
-                val read = recorder.read(buffer, 0, bufferSize)
+                val read = try {
+                    recorder.read(buffer, 0, bufferSize)
+                } catch (e: Exception) {
+                    Log.e("MicrophoneDriver", "Error reading from AudioRecord", e)
+                    -1
+                }
+                
                 if (read > 0) {
                     var sumSq = 0.0
                     for (i in 0 until read) {
@@ -60,19 +79,39 @@ class MicrophoneDriver {
                     // RMS (Root Mean Square) — better for impulsive sounds
                     val rms = sqrt(sumSq / read).toInt()
                     
-                    // Only emit if above a minimum noise floor OR every 5s for baseline update
-                    if (rms > silenceFloor || silenceCount++ > 50) {
+                    // Log RMS in debug to verify it's working
+                    if (rms > silenceFloor) {
+                         Log.d("MicrophoneDriver", "SPIKE detected: $rms (Floor: $silenceFloor)")
+                    }
+                    
+                    // Only emit if above a minimum noise floor OR every 3s for baseline update
+                    if (rms > silenceFloor || silenceCount++ > 30) {
                         silenceCount = 0
                         trySend(rms)
+                    } else {
+                        // Battery optimization: don't spin 100% CPU when silent
+                        kotlinx.coroutines.delay(10)
                     }
+                } else if (read < 0) {
+                    Log.e("MicrophoneDriver", "AudioRecord read error: $read")
+                    break // Exit loop on error
+                } else {
+                    // Small delay if read returned 0
+                    kotlinx.coroutines.delay(10)
                 }
             }
         }
 
         awaitClose {
             job.cancel()
-            recorder.stop()
-            recorder.release()
+            try {
+                recorder.stop()
+            } catch (e: Exception) {
+                Log.e("MicrophoneDriver", "Error stopping AudioRecord", e)
+            } finally {
+                recorder.release()
+                Log.d("MicrophoneDriver", "AudioRecord released")
+            }
         }
     }
 }

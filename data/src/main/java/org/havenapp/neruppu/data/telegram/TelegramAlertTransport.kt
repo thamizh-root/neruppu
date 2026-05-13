@@ -1,11 +1,8 @@
 package org.havenapp.neruppu.data.telegram
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
 import android.util.Log
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.havenapp.neruppu.domain.model.AlertPayload
@@ -18,8 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class TelegramAlertTransport @Inject constructor(
     private val apiClient: TelegramApiClient,
-    private val configStore: TelegramConfigStore,
-    @ApplicationContext private val context: Context
+    private val configStore: TelegramConfigStore
 ) : AlertTransport {
 
     override val isConfigured: Boolean get() = configStore.isComplete
@@ -36,12 +32,7 @@ class TelegramAlertTransport @Inject constructor(
 
                 is AlertPayload.MediaAlert -> {
                     val file = payload.mediaFile
-                    val bytes: ByteArray = if (file.absolutePath.startsWith("content://")) {
-                        context.contentResolver.openInputStream(Uri.parse(file.absolutePath))
-                            ?.use { it.readBytes() } ?: error("Failed to read content URI")
-                    } else {
-                        File(file.absolutePath).readBytes()
-                    }
+                    val bytes: ByteArray = File(file.absolutePath).readBytes()
 
                     if (file.mimeType == "image/jpeg") {
                         // Compress image for Telegram if needed (max 5MB but let's keep it lean like Matrix)
@@ -64,18 +55,27 @@ class TelegramAlertTransport @Inject constructor(
 
     private fun compressJpeg(bytes: ByteArray, targetKb: Int): ByteArray {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return bytes
-        val scaled = if (bitmap.width > 1280) {
-            Bitmap.createScaledBitmap(bitmap, 1280,
-                (1280f * bitmap.height / bitmap.width).toInt(), true)
-        } else bitmap
-        
-        return ByteArrayOutputStream().also { out ->
-            var quality = 85
-            do {
-                out.reset()
-                scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
-                quality -= 10
-            } while (out.size() > targetKb * 1024 && quality > 20)
-        }.toByteArray()
+        var scaled: Bitmap? = null
+        return try {
+            scaled = if (bitmap.width > 1280) {
+                Bitmap.createScaledBitmap(bitmap, 1280,
+                    (1280f * bitmap.height / bitmap.width).toInt(), true)
+            } else null
+            
+            val targetBitmap = scaled ?: bitmap
+            
+            ByteArrayOutputStream().also { out ->
+                var quality = 85
+                do {
+                    out.reset()
+                    targetBitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
+                    quality -= 10
+                    if (out.size() <= targetKb * 1024) break
+                } while (quality > 20)
+            }.toByteArray()
+        } finally {
+            scaled?.recycle()
+            bitmap.recycle()
+        }
     }
 }

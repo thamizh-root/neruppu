@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import org.havenapp.neruppu.data.local.dao.EventDao
 import org.havenapp.neruppu.data.local.entity.toDomain
 import org.havenapp.neruppu.data.local.entity.toEntity
@@ -34,13 +35,18 @@ class SensorRepositoryImpl(
     }
 
     override suspend fun saveEvent(event: Event): Long {
-        return eventDao.insertEvent(event.toEntity())
+        val id = eventDao.insertEvent(event.toEntity())
+        Log.d("SensorRepository", "Event saved: ${event.sensorType} with ID $id")
+        return id
     }
 
     override suspend fun updateEventAudio(eventId: Long, audioUri: String) {
         val entity = eventDao.getEventById(eventId)
         if (entity != null) {
             eventDao.updateEvent(entity.copy(audioUri = audioUri))
+            Log.d("SensorRepository", "Audio attached to event $eventId: $audioUri")
+        } else {
+            Log.e("SensorRepository", "Failed to attach audio: Event $eventId not found!")
         }
     }
 
