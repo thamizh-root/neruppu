@@ -33,15 +33,15 @@ class MatrixConfigStore @Inject constructor(
 
     override var homeserverUrl: String
         get() = prefs.getString(KEY_HOMESERVER, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_HOMESERVER, value).apply()
+        set(value) = prefs.edit().putString(KEY_HOMESERVER, value.trim()).apply()
 
     override var roomId: String
         get() = prefs.getString(KEY_ROOM_ID, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_ROOM_ID, value).apply()
+        set(value) = prefs.edit().putString(KEY_ROOM_ID, value.trim()).apply()
 
     override var accessToken: String
         get() = prefs.getString(KEY_TOKEN, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_TOKEN, value).apply()
+        set(value) = prefs.edit().putString(KEY_TOKEN, value.trim()).apply()
 
     override val isComplete: Boolean
         get() = homeserverUrl.isNotBlank() && roomId.isNotBlank() && accessToken.isNotBlank()

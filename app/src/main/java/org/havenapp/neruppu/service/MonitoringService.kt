@@ -217,6 +217,7 @@ class MonitoringService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        println("Neruppu: onStartCommand action=${intent?.action}")
         Log.d("MonitoringService", "onStartCommand: action=${intent?.action}")
         
         when (intent?.action) {
@@ -452,6 +453,7 @@ class MonitoringService : LifecycleService() {
     }
 
     private suspend fun handleEvent(type: SensorType, description: String): Long {
+        println("Neruppu: handleEvent type=$type")
         val now = System.currentTimeMillis()
         val lastTime = lastEventTime[type] ?: 0L
         
@@ -488,8 +490,10 @@ class MonitoringService : LifecycleService() {
         )
 
         // 3. Orchestrate via Use Case (saves locally + logs in DB + sends Matrix alert)
+        println("Neruppu: Calling HandleSensorEventUseCase for $type")
         Log.d("MonitoringService", "Calling HandleSensorEventUseCase for $type")
         val result = handleSensorEventUseCase.execute(sensorEvent)
+        println("Neruppu: UseCase result=$result")
         val id = result.getOrDefault(-1L)
         
         if (result.isFailure) {

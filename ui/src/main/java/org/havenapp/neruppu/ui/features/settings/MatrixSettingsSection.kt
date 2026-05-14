@@ -117,12 +117,40 @@ fun MatrixSettingsSection(
                 OutlinedButton(
                     onClick = viewModel::testConnection,
                     modifier = Modifier.weight(1f),
-                    enabled = uiState.isSaved,
+                    enabled = uiState.isSaved && !uiState.isLoading,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = NeruppuOrange),
-                    border = BorderStroke(1.dp, if (uiState.isSaved) NeruppuOrange else BorderTertiary)
+                    border = BorderStroke(1.dp, if (uiState.isSaved && !uiState.isLoading) NeruppuOrange else BorderTertiary)
                 ) {
-                    Text("Test Connection", fontWeight = FontWeight.SemiBold)
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = NeruppuOrange,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Test Connection", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            if (uiState.isSaved) {
+                Button(
+                    onClick = viewModel::sendMockMessage,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isLoading,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = NeruppuGreen)
+                ) {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Send Mock Message", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 

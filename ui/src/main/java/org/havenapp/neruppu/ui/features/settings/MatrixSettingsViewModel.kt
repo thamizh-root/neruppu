@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 import org.havenapp.neruppu.domain.di.MatrixTransport
 import org.havenapp.neruppu.domain.repository.MatrixConfigRepository
 import org.havenapp.neruppu.domain.transport.AlertTransport
+import org.havenapp.neruppu.domain.model.AlertPayload
+import org.havenapp.neruppu.domain.model.SensorType
 import javax.inject.Inject
 
 data class MatrixUiState(
@@ -18,6 +20,7 @@ data class MatrixUiState(
     val roomId: String = "",
     val accessToken: String = "",
     val isSaved: Boolean = false,
+    val isLoading: Boolean = false,
     val testStatus: TestStatus? = null
 )
 
@@ -63,13 +66,35 @@ class MatrixSettingsViewModel @Inject constructor(
 
     fun testConnection() {
         viewModelScope.launch {
-            _uiState.update { it.copy(testStatus = null) }
+            _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val result = alertTransport.testConnection()
             _uiState.update { 
                 it.copy(
+                    isLoading = false,
                     testStatus = TestStatus(
                         success = result.isSuccess,
                         error = result.exceptionOrNull()?.message
+                    )
+                )
+            }
+        }
+    }
+
+    fun sendMockMessage() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, testStatus = null) }
+            val payload = AlertPayload.TextAlert(
+                sensorType = SensorType.POWER,
+                message = "This is a test message from Neruppu to verify your connection.",
+                timestamp = System.currentTimeMillis()
+            )
+            val result = alertTransport.send(payload)
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    testStatus = TestStatus(
+                        success = result.isSuccess,
+                        error = if (result.isSuccess) "Mock message sent!" else result.exceptionOrNull()?.message
                     )
                 )
             }

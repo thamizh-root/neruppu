@@ -2,10 +2,11 @@ package org.havenapp.neruppu
 
 import android.app.Application
 import android.os.StrictMode
+import androidx.camera.core.CameraXConfig
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
-class NeruppuApp : Application() {
+class NeruppuApp : Application(), CameraXConfig.Provider {
     override fun onCreate() {
         super.onCreate()
         
@@ -30,5 +31,11 @@ class NeruppuApp : Application() {
                     .build()
             )
         }
+    }
+
+    override fun getCameraXConfig(): CameraXConfig {
+        return CameraXConfig.Builder.fromConfig(androidx.camera.camera2.Camera2Config.defaultConfig())
+            .setMinimumLoggingLevel(android.util.Log.ERROR)
+            .build()
     }
 }

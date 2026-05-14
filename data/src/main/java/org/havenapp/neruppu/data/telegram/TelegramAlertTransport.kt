@@ -22,6 +22,10 @@ class TelegramAlertTransport @Inject constructor(
 
     override suspend fun send(payload: AlertPayload): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
+            if (!isConfigured) {
+                Log.d("TelegramAlertTransport", "Transport not configured, skipping alert")
+                return@runCatching Unit
+            }
             Log.d("TelegramAlertTransport", "Sending alert: $payload")
             val textMsg = "<b>[🔥 Neruppu]</b> ${payload.sensorType.name}: ${payload.message}"
             
