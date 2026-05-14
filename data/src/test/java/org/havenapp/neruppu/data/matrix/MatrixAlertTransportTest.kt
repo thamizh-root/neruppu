@@ -24,12 +24,6 @@ class MatrixAlertTransportTest {
 
     @Before
     fun setup() {
-        mockkStatic(Log::class)
-        every { Log.d(any<String>(), any<String>()) } returns 0
-        every { Log.w(any<String>(), any<String>()) } returns 0
-        every { Log.e(any<String>(), any<String>()) } returns 0
-        every { Log.e(any<String>(), any<String>(), any()) } returns 0
-
         transport = MatrixAlertTransport(apiClient, configStore)
         every { configStore.isComplete } returns true
         
