@@ -1,9 +1,9 @@
 package org.havenapp.neruppu.data.camera.analyzer
 
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.camera.core.ImageProxy
 import io.mockk.*
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -15,12 +15,14 @@ class MotionAnalyzerTest {
 
     @Before
     fun setup() {
-        mockkStatic(Log::class)
-        every { Log.d(any(), any()) } returns 0
-        every { Log.i(any(), any()) } returns 0
-
         mockkStatic(Bitmap::class)
         every { Bitmap.createBitmap(any<Int>(), any<Int>(), any<Bitmap.Config>()) } returns mockk(relaxed = true)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic(Bitmap::class)
+        unmockkAll()
     }
 
     private fun createMockImage(width: Int, height: Int, data: ByteArray): ImageProxy {

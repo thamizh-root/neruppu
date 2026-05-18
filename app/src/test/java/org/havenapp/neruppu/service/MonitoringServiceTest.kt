@@ -84,7 +84,6 @@ class MonitoringServiceTest {
         }
     }
 
-    /* Commented out due to CameraX/Robolectric context issues
     @Test
     fun `TC-SVC-01 Event cooldown suppresses duplicate events`() = runTest(testDispatcher) {
         org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(10))
@@ -124,7 +123,7 @@ class MonitoringServiceTest {
         verify { cameraManager.bindCamera(any(), any(), any(), any(), any()) }
         assertFalse(service.isMonitoring.value)
     }
-    */
+
     
     @Test
     fun `TC-SVC-99 Basic sanity check`() {

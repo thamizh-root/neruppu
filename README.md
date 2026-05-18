@@ -68,5 +68,27 @@ You can try Neruppu immediately by downloading the latest `.apk` from the **Rele
 
 Simply install the app on your Android device and start guarding your environment. We highly value your feedback—whether it's constructive criticism or appreciation, your input is vital to making Neruppu a better tool for everyone.
 
+### Command Line Shortcuts
+
+Run these commands from the project root directory using your command prompt (cmd):
+
+```bash
+# 1. Clean and Build the project (Downloads dependencies & compiles)
+./gradlew clean build
+
+# 2. Build the Debug APK quickly (Skips checks and tests)
+./gradlew assembleDebug
+
+# 3. Install and run the app on a connected device/emulator
+./gradlew installDebug
+
+# 4. Run all Local Unit Tests (JVM)
+./gradlew test
+
+# 5. Run all Instrumented UI Tests (Requires connected device/emulator)
+./gradlew connectedAndroidTest
+```
+
+*Note for Windows users: If `./gradlew` does not work, use `gradlew` or `.\gradlew.bat` instead.*
 ## License
 The GNU GPLv3 also lets people do almost anything they want with your project, except distributing closed source versions. See [LICENSE](LICENSE) for the full text.

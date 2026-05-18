@@ -19,13 +19,6 @@ class MicrophoneDriverTest {
 
     @Before
     fun setup() {
-        mockkStatic(Log::class)
-        every { Log.d(any(), any()) } returns 0
-        every { Log.e(any(), any()) } returns 0
-        every { Log.e(any(), any(), any()) } returns 0
-        every { Log.v(any(), any()) } returns 0
-        every { Log.i(any(), any()) } returns 0
-        
         Dispatchers.setMain(UnconfinedTestDispatcher())
     }
 
