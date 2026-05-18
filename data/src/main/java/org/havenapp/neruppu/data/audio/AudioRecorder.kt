@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -27,6 +26,7 @@ class AudioRecorder(private val context: Context) {
     }
 
     suspend fun startRecording(): File? = withContext(Dispatchers.IO) {
+        var newRecorder: MediaRecorder? = null
         try {
             val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
                 .format(System.currentTimeMillis())
@@ -34,18 +34,22 @@ class AudioRecorder(private val context: Context) {
             val file = File(outputDir, "$name.mp4")
             currentOutputFile = file
 
-            mediaRecorder = createMediaRecorder().apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setOutputFile(file.absolutePath)
-                prepare()
-                start()
-            }
+            newRecorder = createMediaRecorder()
+            newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            newRecorder.setOutputFile(file.absolutePath)
+            newRecorder.prepare()
+            newRecorder.start()
+            
+            mediaRecorder = newRecorder
+            newRecorder = null
             Log.d("AudioRecorder", "Started recording to ${file.absolutePath}")
             file
         } catch (e: Exception) {
             Log.e("AudioRecorder", "Failed to start recording", e)
+            newRecorder?.release()
+            currentOutputFile = null
             null
         }
     }
@@ -59,19 +63,20 @@ class AudioRecorder(private val context: Context) {
     }
 
     suspend fun stopRecording(): Uri? = withContext(Dispatchers.IO) {
+        val recorder = mediaRecorder
+        var success = true
         try {
-            mediaRecorder?.apply {
-                stop()
-                release()
-            }
-            mediaRecorder = null
-            val file = currentOutputFile
-            currentOutputFile = null
-            Log.d("AudioRecorder", "Stopped recording")
-            file?.let { Uri.fromFile(it) }
+            recorder?.stop()
         } catch (e: Exception) {
             Log.e("AudioRecorder", "Failed to stop recording", e)
-            null
+            success = false
+        } finally {
+            recorder?.release()
+            mediaRecorder = null
         }
+        val file = currentOutputFile
+        currentOutputFile = null
+        Log.d("AudioRecorder", "Stopped recording")
+        if (success && file != null) Uri.fromFile(file) else null
     }
 }

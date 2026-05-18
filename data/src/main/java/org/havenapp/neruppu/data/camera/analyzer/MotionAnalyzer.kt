@@ -34,8 +34,8 @@ class MotionAnalyzer(
     val differenceMap: StateFlow<Bitmap?> = _differenceMap.asStateFlow()
 
     // Double buffering to avoid concurrent read/write and StateFlow issues
-    private var frontBitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
-    private var backBitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+    private var frontBitmap: Bitmap? = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+    private var backBitmap: Bitmap? = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
 
     override fun analyze(image: ImageProxy) {
         val now = System.currentTimeMillis()
@@ -52,11 +52,16 @@ class MotionAnalyzer(
         val currentFront = frontBitmap
         val currentBack = backBitmap
 
-        // If bitmaps are already recycled, we shouldn't continue
-        if (currentFront.isRecycled || currentBack.isRecycled) {
+        // If bitmaps are already recycled or cleared (cleanup called), skip
+        if (currentFront == null || currentBack == null || currentBack.isRecycled || currentFront.isRecycled) {
             image.close()
             return
         }
+
+        // Guaranteed non-null past the guard above — use local non-null copies to avoid
+        // !! warnings and keep the rest of the method clean.
+        val safeFront: Bitmap = currentFront
+        val safeBack: Bitmap = currentBack
 
         // Extract ALL needed data FIRST
         val width = image.width
@@ -128,23 +133,27 @@ class MotionAnalyzer(
 
         // 4. Update the back bitmap and swap
         // Safe check using the local capture to ensure we don't write to a recycled bitmap
-        if (!currentBack.isRecycled) {
-            currentBack.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
-            _differenceMap.value = currentBack
+        if (!safeBack.isRecycled) {
+            safeBack.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
+            _differenceMap.value = safeBack
             
-            // Swap references safely
-            frontBitmap = currentBack
-            backBitmap = currentFront
+            // Swap references — assign back to the nullable fields
+            frontBitmap = safeBack
+            backBitmap = safeFront
         }
 
         image.close()
     }
 
     fun cleanup() {
-        // Clear StateFlow first to stop UI from trying to draw
+        // Clear StateFlow so Compose recompositions stop holding any bitmap reference.
         _differenceMap.value = null
-        // Removed manual recycle() to avoid race conditions with Compose UI's drawing thread.
-        // These are small bitmaps (240p) and will be handled by GC safely once references are gone.
+        // Drop strong references from the double-buffer fields so the 2× ~300 KB pixel
+        // buffers are eligible for GC. We do NOT call bitmap.recycle() here — Compose
+        // may still have a transient reference to the old back-buffer during the next
+        // draw frame — dropping the references is sufficient and race-free.
+        backBitmap = null
+        frontBitmap = null
         referenceBuffer = null
     }
 

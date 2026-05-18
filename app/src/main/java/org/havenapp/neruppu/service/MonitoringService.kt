@@ -279,6 +279,11 @@ class MonitoringService : LifecycleService() {
     private fun stopMonitoring() {
         Log.d("MonitoringService", "stopMonitoring() called - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}")
         
+        // Release _differenceMap so the Camera Motion composable can release its bitmap
+        // and the GC can reclaim the pixel buffers even while the CameraX pipeline is still
+        // writing the next frame.
+        _differenceMap.value = null
+
         // ONLY unbind camera if NO ONE needs it (not monitoring AND UI is not visible)
         if (!_isMonitoring.value && !_uiActive.value) {
             Log.d("MonitoringService", "Releasing camera system (Idle & UI hidden)")
@@ -594,6 +599,7 @@ class MonitoringService : LifecycleService() {
     override fun onDestroy() {
         Log.d("MonitoringService", "onDestroy [PID: ${Process.myPid()}]")
         super.onDestroy()
+        _differenceMap.value = null
         getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .unregisterOnSharedPreferenceChangeListener(prefsListener)
         stopWakeLockHeartbeat()
