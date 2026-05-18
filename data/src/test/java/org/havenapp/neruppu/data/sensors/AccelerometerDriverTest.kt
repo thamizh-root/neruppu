@@ -10,6 +10,7 @@ import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -24,14 +25,14 @@ class AccelerometerDriverTest {
 
     @Before
     fun setup() {
-        mockkStatic(Log::class)
-        every { Log.d(any<String>(), any<String>()) } returns 0
-        every { Log.i(any<String>(), any<String>()) } returns 0
-        every { Log.e(any<String>(), any<String>()) } returns 0
-
         every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
         every { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) } returns accelerometer
         every { accelerometer.type } returns Sensor.TYPE_ACCELEROMETER
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test

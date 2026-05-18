@@ -1,11 +1,11 @@
 package org.havenapp.neruppu.data.telegram
 
-import android.util.Log
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import org.havenapp.neruppu.domain.model.AlertPayload
 import org.havenapp.neruppu.domain.model.MediaFile
 import org.havenapp.neruppu.domain.model.SensorType
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -24,12 +24,13 @@ class TelegramAlertTransportTest {
 
     @Before
     fun setup() {
-        mockkStatic(Log::class)
-        every { Log.d(any<String>(), any<String>()) } returns 0
-        every { Log.e(any<String>(), any<String>(), any()) } returns 0
-
         transport = TelegramAlertTransport(apiClient, configStore)
         every { configStore.isComplete } returns true
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test

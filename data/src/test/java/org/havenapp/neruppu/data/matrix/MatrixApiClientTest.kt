@@ -7,7 +7,9 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -20,6 +22,11 @@ class MatrixApiClientTest {
         every { configStore.homeserverUrl } returns "https://matrix.org"
         every { configStore.accessToken } returns "secret_token"
         every { configStore.roomId } returns "!room:matrix.org"
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test

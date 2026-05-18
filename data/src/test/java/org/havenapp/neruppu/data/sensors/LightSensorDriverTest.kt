@@ -10,6 +10,7 @@ import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -22,14 +23,14 @@ class LightSensorDriverTest {
 
     @Before
     fun setup() {
-        mockkStatic(Log::class)
-        every { Log.d(any<String>(), any<String>()) } returns 0
-        every { Log.i(any<String>(), any<String>()) } returns 0
-        every { Log.e(any<String>(), any<String>()) } returns 0
-
         every { context.getSystemService(Context.SENSOR_SERVICE) } returns sensorManager
         every { sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT) } returns lightSensor
         every { lightSensor.type } returns Sensor.TYPE_LIGHT
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test

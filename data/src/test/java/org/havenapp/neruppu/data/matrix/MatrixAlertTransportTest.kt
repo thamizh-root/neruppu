@@ -1,11 +1,11 @@
 package org.havenapp.neruppu.data.matrix
 
-import android.util.Log
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import org.havenapp.neruppu.domain.model.AlertPayload
 import org.havenapp.neruppu.domain.model.MediaFile
 import org.havenapp.neruppu.domain.model.SensorType
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -18,7 +18,7 @@ class MatrixAlertTransportTest {
     @get:Rule
     val tempFolder = TemporaryFolder()
 
-    private val apiClient = mockk<MatrixApiClient>()
+    private val apiClient = mockk<MatrixApiClient>(relaxed = true)
     private val configStore = mockk<MatrixConfigStore>()
     private lateinit var transport: MatrixAlertTransport
 
@@ -26,9 +26,11 @@ class MatrixAlertTransportTest {
     fun setup() {
         transport = MatrixAlertTransport(apiClient, configStore)
         every { configStore.isComplete } returns true
-        
-        // Exclude toString from verification to avoid Order failures
-        excludeRecords { apiClient.toString() }
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test
