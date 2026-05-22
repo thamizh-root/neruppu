@@ -601,6 +601,7 @@ class MonitoringService : LifecycleService() {
         sensorsJob?.cancel()
         uiSensorsJob?.cancel()
         serviceScope.cancel()
+        cameraManager.release()
     }
 
     companion object {

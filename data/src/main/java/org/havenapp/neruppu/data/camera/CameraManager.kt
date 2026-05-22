@@ -33,7 +33,7 @@ class CameraManager(private val context: Context) {
     var currentSurfaceProvider: Preview.SurfaceProvider? = null
     
     private val mutex = Mutex()
-    val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     
     var isBound = false
     var currentCameraSide: Boolean? = null
@@ -101,6 +101,10 @@ class CameraManager(private val context: Context) {
         if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner && currentSurfaceProvider == surfaceProvider) {
             Log.d("CameraManager", "Camera already bound to service lifecycle with same surface. Keeping active.")
             return
+        }
+        
+        if (cameraExecutor.isShutdown) {
+            cameraExecutor = Executors.newSingleThreadExecutor()
         }
 
         getCameraProvider { cameraProvider ->
@@ -184,6 +188,12 @@ class CameraManager(private val context: Context) {
             motionAnalyzer?.cleanup()
             motionAnalyzer = null
             Log.d("CameraManager", "Camera system released")
+        }
+    }
+
+    fun release() {
+        if (!cameraExecutor.isShutdown) {
+            cameraExecutor.shutdown()
         }
     }
 }
