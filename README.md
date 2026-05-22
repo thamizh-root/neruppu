@@ -61,9 +61,9 @@ To receive alerts on your primary phone or computer:
 
 | Home Dashboard | Evidence Log | Settings & Matrix |
 | :---: | :---: | :---: |
-| <img src="assets/home.jpg" width="300" /> | <img src="assets/events.jpg" width="300" /> | <img src="assets/settings.jpg" width="300" /> |
+| <img src="assets/home.jpg" style="width:300px;" /> | <img src="assets/events.jpg" style="width:300px;" /> | <img src="assets/settings.jpg" style="width:300px;" /> |
 
-## 📥 How to Try Neruppu
+## How to Try Neruppu
 You can try Neruppu immediately by downloading the latest `.apk` from the **Releases** tab.
 
 Simply install the app on your Android device and start guarding your environment. We highly value your feedback—whether it's constructive criticism or appreciation, your input is vital to making Neruppu a better tool for everyone.
@@ -90,5 +90,28 @@ Run these commands from the project root directory using your command prompt (cm
 ```
 
 *Note for Windows users: If `./gradlew` does not work, use `gradlew` or `.\gradlew.bat` instead.*
+
+## 💖 Sponsor / Support Development
+
+If Neruppu has been useful to you and you'd like to support its continued development, consider donating:
+
+- **Email**: inboxtome26@gmail.com
+
+Your support helps cover server costs, development time, and ensures Neruppu remains open-source and free for everyone.
+
+---
+
 ## License
-The GNU GPLv3 also lets people do almost anything they want with your project, except distributing closed source versions. See [LICENSE](LICENSE) for the full text.
+
+[![License: GPL-3.0-only](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+Neruppu is licensed under the **GNU General Public License v3.0**.
+
+This license grants you the freedom to use, modify, and distribute the software — including for commercial purposes — as long as you keep any derivative works open-source under the same license. In short:
+
+- ✅ Use and modify freely
+- ✅ Distribute copies
+- ❌ Distribute closed-source variants
+- ❌ Use the Neruppu trademark without permission
+
+See [LICENSE](LICENSE) for the full legal text.
