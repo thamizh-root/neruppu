@@ -88,17 +88,14 @@ class MicrophoneDriver(
                     if (rms > silenceFloor || silenceCount++ > 30) {
                         silenceCount = 0
                         trySend(rms)
-                    } else {
-                        // Battery optimization: don't spin 100% CPU when silent
-                        kotlinx.coroutines.delay(10)
                     }
                 } else if (read < 0) {
                     Log.e("MicrophoneDriver", "AudioRecord read error: $read")
                     break // Exit loop on error
-                } else {
-                    // Small delay if read returned 0
-                    kotlinx.coroutines.delay(10)
                 }
+                
+                // Battery optimization: throttle polling to reduce CPU overhead
+                kotlinx.coroutines.delay(10)
             }
         }
 
