@@ -122,6 +122,17 @@ class CameraManager(private val context: Context) {
                     )
                     .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
                     .build()
+                
+                // Lower resolution for ImageAnalysis to reduce CPU load (MotionAnalyzer downsamples to 320x240 anyway)
+                val analysisResolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(320, 240),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER
+                        )
+                    )
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .build()
 
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
@@ -132,7 +143,7 @@ class CameraManager(private val context: Context) {
                 motionAnalyzer = MotionAnalyzer(onMotionDetected, sensitivity)
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setResolutionSelector(resolutionSelector)
+                    .setResolutionSelector(analysisResolutionSelector)
                     .build()
                     .also {
                         it.setAnalyzer(cameraExecutor, motionAnalyzer!!)
@@ -187,6 +198,8 @@ class CameraManager(private val context: Context) {
             imageAnalysis = null
             motionAnalyzer?.cleanup()
             motionAnalyzer = null
+            // Shutdown executor to prevent thread leak
+            cameraExecutor.shutdown()
             Log.d("CameraManager", "Camera system released")
         }
     }

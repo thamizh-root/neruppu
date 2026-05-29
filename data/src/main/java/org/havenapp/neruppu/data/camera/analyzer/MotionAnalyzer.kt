@@ -1,7 +1,6 @@
 package org.havenapp.neruppu.data.camera.analyzer
 
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -130,6 +129,13 @@ class MotionAnalyzer(
         // Safe check using the local capture to ensure we don't write to a recycled bitmap
         if (!currentBack.isRecycled) {
             currentBack.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
+            
+            // Recycle the old bitmap currently in StateFlow before replacing it
+            val oldBitmap = _differenceMap.value
+            if (oldBitmap != null && oldBitmap !== currentBack && !oldBitmap.isRecycled) {
+                oldBitmap.recycle()
+            }
+            
             _differenceMap.value = currentBack
             
             // Swap references safely
@@ -141,10 +147,15 @@ class MotionAnalyzer(
     }
 
     fun cleanup() {
-        // Clear StateFlow first to stop UI from trying to draw
+        // Recycle and clear the current bitmap held by StateFlow
+        val currentBitmap = _differenceMap.value
+        if (currentBitmap != null && !currentBitmap.isRecycled) {
+            currentBitmap.recycle()
+        }
         _differenceMap.value = null
-        // Removed manual recycle() to avoid race conditions with Compose UI's drawing thread.
-        // These are small bitmaps (240p) and will be handled by GC safely once references are gone.
+        // Recycle bitmaps to free native memory
+        if (!frontBitmap.isRecycled) frontBitmap.recycle()
+        if (!backBitmap.isRecycled) backBitmap.recycle()
         referenceBuffer = null
     }
 

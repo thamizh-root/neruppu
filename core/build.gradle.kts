@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "org.havenapp.neruppu.core"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
