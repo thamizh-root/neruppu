@@ -314,6 +314,7 @@ fun AudioPlayer(uriString: String) {
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var duration by remember { mutableIntStateOf(0) }
     var currentPosition by remember { mutableIntStateOf(0) }
+    var isReleased by remember { mutableStateOf(false) }
 
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
@@ -329,7 +330,11 @@ fun AudioPlayer(uriString: String) {
 
     DisposableEffect(uriString) {
         onDispose {
-            mediaPlayer?.release()
+            isReleased = true
+            try {
+                mediaPlayer?.release()
+            } catch (_: Exception) {
+            }
             mediaPlayer = null
         }
     }
@@ -363,26 +368,43 @@ fun AudioPlayer(uriString: String) {
                             } else {
                                 uri
                             }
-                            mediaPlayer = MediaPlayer().apply {
+                            val player = MediaPlayer().apply {
                                 setDataSource(context, contentUri)
-                                setOnPreparedListener { mp ->
-                                    duration = mp.duration
-                                    mp.start()
-                                    isPlaying = true
+                                setOnPreparedListener {
+                                    if (!isReleased && mediaPlayer == this@apply) {
+                                        duration = this.duration
+                                        start()
+                                        isPlaying = true
+                                    }
                                 }
                                 setOnCompletionListener {
                                     isPlaying = false
                                     currentPosition = 0
-                                    it.seekTo(0)
+                                    seekTo(0)
+                                }
+                                setOnErrorListener { _, _, _ ->
+                                    isReleased = true
+                                    try {
+                                        release()
+                                    } catch (_: Exception) {
+                                    }
+                                    mediaPlayer = null
+                                    true
                                 }
                                 prepareAsync()
                             }
-                        } else {
+                            mediaPlayer = player
+                        } else if (!isReleased) {
                             mediaPlayer?.start()
                             isPlaying = true
                         }
                     } catch (e: Exception) {
                         Log.e("LogsScreen", "Error playing audio", e)
+                        try {
+                            mediaPlayer?.release()
+                        } catch (_: Exception) {
+                        }
+                        mediaPlayer = null
                     }
                 }
             },

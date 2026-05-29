@@ -147,9 +147,13 @@ class MotionAnalyzer(
     }
 
     fun cleanup() {
-        // Clear StateFlow first to stop UI from trying to draw
+        // Recycle and clear the current bitmap held by StateFlow
+        val currentBitmap = _differenceMap.value
+        if (currentBitmap != null && !currentBitmap.isRecycled) {
+            currentBitmap.recycle()
+        }
         _differenceMap.value = null
-        // Recycle bitmaps to free native memory - safe now that StateFlow is cleared
+        // Recycle bitmaps to free native memory
         if (!frontBitmap.isRecycled) frontBitmap.recycle()
         if (!backBitmap.isRecycled) backBitmap.recycle()
         referenceBuffer = null

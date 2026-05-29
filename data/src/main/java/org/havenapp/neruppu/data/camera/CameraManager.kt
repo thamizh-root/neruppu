@@ -198,6 +198,8 @@ class CameraManager(private val context: Context) {
             imageAnalysis = null
             motionAnalyzer?.cleanup()
             motionAnalyzer = null
+            // Shutdown executor to prevent thread leak
+            cameraExecutor.shutdown()
             Log.d("CameraManager", "Camera system released")
         }
     }
