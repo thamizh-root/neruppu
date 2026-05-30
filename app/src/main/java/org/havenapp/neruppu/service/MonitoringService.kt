@@ -1,6 +1,5 @@
 package org.havenapp.neruppu.service
 
-import android.graphics.Bitmap
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -16,7 +15,6 @@ import android.os.PowerManager
 import android.os.Process
 import android.util.Log
 import org.havenapp.neruppu.BuildConfig
-import androidx.camera.core.Preview
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -61,7 +59,6 @@ class MonitoringService : LifecycleService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var wakeLock: PowerManager.WakeLock? = null
-    private var wakeLockJob: Job? = null
     private var sensorsJob: Job? = null
     private var heartbeatJob: Job? = null
     
@@ -73,9 +70,6 @@ class MonitoringService : LifecycleService() {
 
     private val _motionLevel = MutableStateFlow(0.0)
     val motionLevel: StateFlow<Double> = _motionLevel
-
-    private val _differenceMap = MutableStateFlow<Bitmap?>(null)
-    val differenceMap: StateFlow<Bitmap?> = _differenceMap
 
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel
@@ -173,42 +167,41 @@ class MonitoringService : LifecycleService() {
         heartbeatJob?.cancel()
         heartbeatJob = serviceScope.launch {
             while (isActive) {
-                Log.d("MonitoringService", "HEARTBEAT - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}, PID: ${Process.myPid()}")
+                Log.v("MonitoringService", "HEARTBEAT - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}, PID: ${Process.myPid()}")
                 delay(10000)
             }
         }
     }
 
-    private fun startWakeLockHeartbeat() {
-        if (wakeLockJob?.isActive == true) return
-        wakeLockJob = serviceScope.launch {
-            while (isActive) {
-                refreshWakeLock()
-                delay(8 * 60 * 1000L) // Refresh every 8 minutes
-            }
-        }
-    }
-
-    private fun stopWakeLockHeartbeat() {
-        wakeLockJob?.cancel()
-        wakeLockJob = null
-        releaseWakeLock()
-    }
-
-    private fun refreshWakeLock() {
+    private fun acquireWakeLock() {
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         if (wakeLock == null) {
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Neruppu:MonitoringWakeLock")
         }
-        // Acquire with 10-min safety timeout. EXTENDS existing lock if held.
-        wakeLock?.acquire(10 * 60 * 1000L)
-        Log.d("MonitoringService", "WakeLock refreshed (10m timeout)")
+        if (wakeLock?.isHeld == false) {
+            wakeLock?.acquire(10 * 60 * 1000L) // 10-minute timeout
+            Log.d("MonitoringService", "WakeLock acquired")
+        }
     }
 
     private fun releaseWakeLock() {
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
             Log.d("MonitoringService", "WakeLock released")
+        }
+    }
+
+    private fun startWakeLockIfNeeded() {
+        // Acquire wake lock when we have active work that needs CPU
+        if (_isMonitoring.value) {
+            acquireWakeLock()
+        }
+    }
+
+    private fun stopWakeLockIfNeeded() {
+        // Release wake lock when no active work requires CPU
+        if (!_isMonitoring.value) {
+            releaseWakeLock()
         }
     }
 
@@ -255,20 +248,16 @@ class MonitoringService : LifecycleService() {
         return START_STICKY
     }
 
-    fun setPreviewSurface(surfaceProvider: Preview.SurfaceProvider?) {
-        cameraManager.setPreviewSurface(surfaceProvider)
-    }
-
     fun toggleMonitoring() {
         _isMonitoring.value = !_isMonitoring.value
         if (_isMonitoring.value) {
             Log.d("MonitoringService", "Monitoring ACTIVATED")
-            startWakeLockHeartbeat()
+            startWakeLockIfNeeded()
             // Ensure service is running as foreground when monitoring is ON
             updateNotification()
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
-            stopWakeLockHeartbeat()
+            stopWakeLockIfNeeded()
             // When monitoring is OFF, we might still be in foreground if UI is active
             // but updateNotification will handle the startForeground/stopForeground logic
             updateNotification()
@@ -299,18 +288,16 @@ class MonitoringService : LifecycleService() {
     private fun startMonitoring() {
         Log.d("MonitoringService", "startMonitoring() called - Monitoring: ${_isMonitoring.value}, UI: ${_uiActive.value}")
         
-        // Always bind camera if we are either Monitoring OR UI is active
+// Always bind camera if we are either Monitoring OR UI is active
         if (_isMonitoring.value || _uiActive.value) {
             cameraManager.bindCamera(
                 lifecycleOwner = this,
                 useFrontCamera = useFrontCameraPref,
-                surfaceProvider = cameraManager.currentSurfaceProvider,
                 sensitivity = (sensitivityPref * 30).toInt().coerceIn(5, 30),
                 onMotionDetected = { level ->
                     _motionLevel.value = level
-                    _differenceMap.value = cameraManager.getDifferenceMap()?.value
-                    if (_isMonitoring.value && level > 15.0) { // Using 15% as default percentage trigger
-                        Log.d("MonitoringService", "THRESHOLD EXCEEDED: $level")
+                    if (_isMonitoring.value && level > 15.0) {
+                        Log.v("MonitoringService", "THRESHOLD EXCEEDED: $level")
                         serviceScope.launch {
                             handleEvent(SensorType.CAMERA_MOTION, "Camera motion detected: Level ${String.format("%.2f", level)}")
                         }
@@ -324,16 +311,16 @@ class MonitoringService : LifecycleService() {
             return
         }
         
-        // Start sensor data flows only if we are monitoring
+// Start sensor data flows only if we are monitoring
         // UI preview only needs the camera (handled above)
         if (_isMonitoring.value) {
             sensorsJob = serviceScope.launch {
-                Log.d("MonitoringService", "Launching sensor flows...")
+                Log.v("MonitoringService", "Launching sensor flows...")
                 
                 val accelerometerFlow = accelerometerDriver.observeMotion()
                     .buffer()
                     .onEach { magnitude ->
-                        Log.d("MonitoringService", "Motion event received")
+                        Log.v("MonitoringService", "Motion event received")
                         serviceScope.launch {
                             handleEvent(SensorType.ACCELEROMETER, "Physical motion detected: Magnitude $magnitude")
                         }
@@ -343,7 +330,7 @@ class MonitoringService : LifecycleService() {
                     .buffer()
                     .onEach { lux ->
                         _lightLevel.value = lux
-                        Log.d("MonitoringService", "Light event received")
+                        Log.v("MonitoringService", "Light event received")
                         serviceScope.launch {
                             handleEvent(SensorType.LIGHT, "Light change detected: $lux lux")
                         }
@@ -596,7 +583,7 @@ class MonitoringService : LifecycleService() {
         super.onDestroy()
         getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .unregisterOnSharedPreferenceChangeListener(prefsListener)
-        stopWakeLockHeartbeat()
+        stopWakeLockIfNeeded()
         heartbeatJob?.cancel()
         sensorsJob?.cancel()
         uiSensorsJob?.cancel()

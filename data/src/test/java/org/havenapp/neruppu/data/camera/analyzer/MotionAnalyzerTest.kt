@@ -98,20 +98,17 @@ class MotionAnalyzerTest {
         val analyzer = MotionAnalyzer(onMotionDetected = {})
         analyzer.cleanup()
         
-        assertNull(analyzer.differenceMap.value)
+        assertNull(analyzer.referenceBuffer)
     }
 
     @Test
-    fun `TC-CAM-07 Heatmap colors are correct`() {
-        // We need to capture the IntArray passed to setPixels
+    fun `TC-CAM-07 No heatmap bitmap is generated`() {
+        // We need to verify that Bitmap.createBitmap is not called to produce a heatmap
         val mockBitmap = mockk<Bitmap>(relaxed = true)
-        every { Bitmap.createBitmap(320, 240, Bitmap.Config.ARGB_8888) } returns mockBitmap
-        
-        val pixelsSlot = slot<IntArray>()
-        every { mockBitmap.setPixels(capture(pixelsSlot), any(), any(), any(), any(), any(), any()) } just Runs
+        every { Bitmap.createBitmap(any(), any(), any()) } returns mockBitmap
 
         val analyzer = MotionAnalyzer(onMotionDetected = {}, sensitivity = 15)
-        
+
         // 1. Initialize reference (all 100)
         val frame1 = createMockImage(320, 240, ByteArray(320 * 240) { 100.toByte() })
         analyzer.analyze(frame1)
@@ -119,19 +116,13 @@ class MotionAnalyzerTest {
         Thread.sleep(210)
 
         // 2. Second frame with specific changes:
-        // Pixel 0: 100 (Unchanged -> Grey 0xFF808080)
-        // Pixel 1: 120 (Minor change 20 > 15 -> Blue 0xFF0000FF)
-        // Pixel 2: 140 (Major change 40 > 30 -> Yellow 0xFFFFFF00)
         val data2 = ByteArray(320 * 240) { 100.toByte() }
         data2[1] = 120.toByte()
         data2[2] = 140.toByte()
-        
         val frame2 = createMockImage(320, 240, data2)
         analyzer.analyze(frame2)
 
-        val pixels = pixelsSlot.captured
-        assertEquals(0xFF808080.toInt(), pixels[0])
-        assertEquals(0xFF0000FF.toInt(), pixels[1])
-        assertEquals(0xFFFFFF00.toInt(), pixels[2])
+        // Verify that setPixels was never called on the mockBitmap
+        verify(exactly = 0) { mockBitmap.setPixels(any(), any(), any(), any(), any(), any(), any()) }
     }
 }
