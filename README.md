@@ -3,7 +3,7 @@
 Neruppu (Tamil for *Fire*) is a modern, high-security Android application that turns your device into a sophisticated physical monitoring system. Built on the legacy of "Haven," Neruppu is redesigned from scratch using the latest Android technologies to provide an air-gapped, privacy-first security solution.
 
 <div align="center">
-  <img src="neruppu_social_preview.png" alt="Neruppu" />
+  <img src="assets/neruppu_social_preview.png" alt="Neruppu" />
 </div> 
 
 [![Android API](https://img.shields.io/badge/API-26%2B-brightgreen.svg)](https://android-arsenal.com/api?level=26)
