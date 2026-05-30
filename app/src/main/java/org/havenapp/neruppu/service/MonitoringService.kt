@@ -61,7 +61,6 @@ class MonitoringService : LifecycleService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var wakeLock: PowerManager.WakeLock? = null
-    private var wakeLockJob: Job? = null
     private var sensorsJob: Job? = null
     private var heartbeatJob: Job? = null
     
@@ -179,36 +178,35 @@ class MonitoringService : LifecycleService() {
         }
     }
 
-    private fun startWakeLockHeartbeat() {
-        if (wakeLockJob?.isActive == true) return
-        wakeLockJob = serviceScope.launch {
-            while (isActive) {
-                refreshWakeLock()
-                delay(8 * 60 * 1000L) // Refresh every 8 minutes
-            }
-        }
-    }
-
-    private fun stopWakeLockHeartbeat() {
-        wakeLockJob?.cancel()
-        wakeLockJob = null
-        releaseWakeLock()
-    }
-
-    private fun refreshWakeLock() {
+    private fun acquireWakeLock() {
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         if (wakeLock == null) {
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Neruppu:MonitoringWakeLock")
         }
-        // Acquire with 10-min safety timeout. EXTENDS existing lock if held.
-        wakeLock?.acquire(10 * 60 * 1000L)
-        Log.d("MonitoringService", "WakeLock refreshed (10m timeout)")
+        if (wakeLock?.isHeld == false) {
+            wakeLock?.acquire(10 * 60 * 1000L) // 10-minute timeout
+            Log.d("MonitoringService", "WakeLock acquired")
+        }
     }
 
     private fun releaseWakeLock() {
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
             Log.d("MonitoringService", "WakeLock released")
+        }
+    }
+
+    private fun startWakeLockIfNeeded() {
+        // Acquire wake lock when we have active work that needs CPU
+        if (_isMonitoring.value) {
+            acquireWakeLock()
+        }
+    }
+
+    private fun stopWakeLockIfNeeded() {
+        // Release wake lock when no active work requires CPU
+        if (!_isMonitoring.value) {
+            releaseWakeLock()
         }
     }
 
@@ -263,12 +261,12 @@ class MonitoringService : LifecycleService() {
         _isMonitoring.value = !_isMonitoring.value
         if (_isMonitoring.value) {
             Log.d("MonitoringService", "Monitoring ACTIVATED")
-            startWakeLockHeartbeat()
+            startWakeLockIfNeeded()
             // Ensure service is running as foreground when monitoring is ON
             updateNotification()
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
-            stopWakeLockHeartbeat()
+            stopWakeLockIfNeeded()
             // When monitoring is OFF, we might still be in foreground if UI is active
             // but updateNotification will handle the startForeground/stopForeground logic
             updateNotification()
@@ -596,7 +594,7 @@ class MonitoringService : LifecycleService() {
         super.onDestroy()
         getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
             .unregisterOnSharedPreferenceChangeListener(prefsListener)
-        stopWakeLockHeartbeat()
+        stopWakeLockIfNeeded()
         heartbeatJob?.cancel()
         sensorsJob?.cancel()
         uiSensorsJob?.cancel()
