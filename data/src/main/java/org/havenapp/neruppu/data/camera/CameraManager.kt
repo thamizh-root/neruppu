@@ -14,9 +14,7 @@ import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.flow.StateFlow
 import org.havenapp.neruppu.data.camera.analyzer.MotionAnalyzer
-import android.graphics.Bitmap
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -27,23 +25,20 @@ import kotlin.coroutines.resume
 class CameraManager(private val context: Context) {
 
     private var imageCapture: ImageCapture? = null
-    private var preview: Preview? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var motionAnalyzer: MotionAnalyzer? = null
-    var currentSurfaceProvider: Preview.SurfaceProvider? = null
-    
+     
     private val mutex = Mutex()
     private var cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    
+     
     var isBound = false
     var currentCameraSide: Boolean? = null
     var currentLifecycleOwner: LifecycleOwner? = null
 
-    fun setPreviewSurface(surfaceProvider: Preview.SurfaceProvider?) {
-        Log.d("CameraManager", "Setting preview surface: ${if (surfaceProvider != null) "ATTACHED" else "DETACHED"}")
-        currentSurfaceProvider = surfaceProvider
-        preview?.setSurfaceProvider(surfaceProvider)
-    }
+    var sensitivityPref = 15f
+    private var onMotionDetectedCallback: ((Double) -> Unit)? = null
+
+    
 
     fun getCameraProvider(callback: (ProcessCameraProvider) -> Unit) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -89,19 +84,21 @@ class CameraManager(private val context: Context) {
         }
     }
 
-    fun getDifferenceMap(): StateFlow<Bitmap?>? = motionAnalyzer?.differenceMap
+    fun getDifferenceMap(): Nothing? = null
 
     fun bindCamera(
         lifecycleOwner: LifecycleOwner,
         useFrontCamera: Boolean,
-        surfaceProvider: Preview.SurfaceProvider?,
         sensitivity: Int = 15,
         onMotionDetected: (Double) -> Unit
     ) {
-        if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner && currentSurfaceProvider == surfaceProvider) {
-            Log.d("CameraManager", "Camera already bound to service lifecycle with same surface. Keeping active.")
+        if (isBound && currentCameraSide == useFrontCamera && currentLifecycleOwner == lifecycleOwner) {
+            Log.d("CameraManager", "Camera already bound to service lifecycle. Keeping active.")
             return
         }
+        
+        sensitivityPref = sensitivity.toFloat()
+        onMotionDetectedCallback = onMotionDetected
         
         if (cameraExecutor.isShutdown) {
             cameraExecutor = Executors.newSingleThreadExecutor()
@@ -123,7 +120,6 @@ class CameraManager(private val context: Context) {
                     .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
                     .build()
                 
-                // Lower resolution for ImageAnalysis to reduce CPU load (MotionAnalyzer downsamples to 320x240 anyway)
                 val analysisResolutionSelector = ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
@@ -150,17 +146,6 @@ class CameraManager(private val context: Context) {
                     }
                 useCases.add(imageAnalysis!!)
 
-                if (surfaceProvider != null) {
-                    preview = Preview.Builder()
-                        .setResolutionSelector(resolutionSelector)
-                        .build().apply {
-                            setSurfaceProvider(surfaceProvider)
-                        }
-                    useCases.add(preview!!)
-                } else {
-                    preview = null
-                }
-
                 val cameraSelector = if (useFrontCamera) {
                     CameraSelector.DEFAULT_FRONT_CAMERA
                 } else {
@@ -176,8 +161,7 @@ class CameraManager(private val context: Context) {
                 isBound = true
                 currentCameraSide = useFrontCamera
                 currentLifecycleOwner = lifecycleOwner
-                currentSurfaceProvider = surfaceProvider
-                Log.d("CameraManager", "CAMERA SYSTEM INITIALIZED BY SERVICE: Bound to $lifecycleOwner (Surface: ${if (surfaceProvider != null) "YES" else "NO"})")
+                Log.d("CameraManager", "CAMERA SYSTEM INITIALIZED BY SERVICE: Bound to $lifecycleOwner")
             } catch (exc: Exception) {
                 Log.e("CameraManager", "CRITICAL: Service-side camera binding failed", exc)
                 isBound = false
@@ -193,12 +177,10 @@ class CameraManager(private val context: Context) {
             currentCameraSide = null
             currentLifecycleOwner = null
             imageCapture = null
-            preview = null
             imageAnalysis?.clearAnalyzer()
             imageAnalysis = null
             motionAnalyzer?.cleanup()
             motionAnalyzer = null
-            // Shutdown executor to prevent thread leak
             cameraExecutor.shutdown()
             Log.d("CameraManager", "Camera system released")
         }

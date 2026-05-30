@@ -35,7 +35,7 @@ class LightSensorDriver(context: Context) {
     fun observeLightChanges(threshold: Float = 2f): Flow<Float> = callbackFlow {
         Log.d("LightSensorDriver", "Registering light sensor listener")
         val listener = LightListener(threshold) { lux ->
-            Log.i("LightSensorDriver", "Light change detected: $lux lux")
+            Log.d("LightSensorDriver", "Light change detected: $lux lux")
             trySend(lux)
         }
 

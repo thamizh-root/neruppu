@@ -1,63 +1,34 @@
 package org.havenapp.neruppu.data.camera.analyzer
 
-import android.graphics.Bitmap
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import java.nio.ByteBuffer
 import kotlin.math.abs
 
-/**
- * High-performance Difference Map Analyzer.
- * Processes at 5 FPS, downsamples to 240p, and outputs a Grey/Blue/Yellow heatmap.
- */
 class MotionAnalyzer(
     private val onMotionDetected: (Double) -> Unit,
     private val sensitivity: Int = 15
 ) : ImageAnalysis.Analyzer {
 
-    private var referenceBuffer: ByteArray? = null
+    internal var referenceBuffer: ByteArray? = null
     private var lastAnalysisTime = 0L
     private val targetFps = 5
     private val frameIntervalMs = 1000L / targetFps
 
-    // Output Visualization (240p approximate)
     private val outWidth = 320
     private val outHeight = 240
-    private val outPixels = IntArray(outWidth * outHeight)
-    
-    private val _differenceMap = MutableStateFlow<Bitmap?>(null)
-    val differenceMap: StateFlow<Bitmap?> = _differenceMap.asStateFlow()
-
-    // Double buffering to avoid concurrent read/write and StateFlow issues
-    private var frontBitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
-    private var backBitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
 
     override fun analyze(image: ImageProxy) {
         val now = System.currentTimeMillis()
         
-        // 1. Frame Skipping: Only process at ~5 FPS
         if (now - lastAnalysisTime < frameIntervalMs) {
             image.close()
             return
         }
         lastAnalysisTime = now
 
-        // Capture current state locally to avoid race conditions with cleanup()
         val currentRef = referenceBuffer
-        val currentFront = frontBitmap
-        val currentBack = backBitmap
-
-        // If bitmaps are already recycled, we shouldn't continue
-        if (currentFront.isRecycled || currentBack.isRecycled) {
-            image.close()
-            return
-        }
-
-        // Extract ALL needed data FIRST
         val width = image.width
         val height = image.height
         val plane = image.planes[0]
@@ -75,10 +46,9 @@ class MotionAnalyzer(
             return
         }
 
-        // 2. Perform high-perf IntArray math for the Difference Map
         var changedPixels = 0
         var totalSampled = 0
-        
+
         val xStep = width / outWidth
         val yStep = height / outHeight
 
@@ -94,30 +64,16 @@ class MotionAnalyzer(
                     val referenceVal = ref[refIndex].toInt() and 0xFF
                     
                     val diff = abs(currentVal - referenceVal)
-                    
-                    // 3. Difference Map Logic (Grey/Blue/Yellow)
-                    val color = when {
-                        diff > sensitivity * 2 -> { // Major Change
-                            changedPixels++
-                            0xFFFFFF00.toInt() // Bright Yellow
-                        }
-                        diff > sensitivity -> { // Minor Change
-                            0xFF0000FF.toInt() // Blue
-                        }
-                        else -> { // Unchanged
-                            0xFF808080.toInt() // Mid-Grey
-                        }
+
+                    if (diff > sensitivity * 2) {
+                        changedPixels++
                     }
                     
-                    outPixels[y * outWidth + x] = color
+                    totalSampled++
                     
-                    // Update reference buffer with a slow adaptive rate
-                    // Improved: slow global adaptive update (5% blend) for all pixels
                     val adaptRate = 0.05f
                     val blended = (adaptRate * currentVal + (1f - adaptRate) * referenceVal).toInt()
                     ref[refIndex] = blended.toByte()
-                    
-                    totalSampled++
                 }
             }
         }
@@ -125,47 +81,18 @@ class MotionAnalyzer(
         val motionLevel = if (totalSampled > 0) (changedPixels.toDouble() / totalSampled) * 100.0 else 0.0
         onMotionDetected(motionLevel)
 
-        // 4. Update the back bitmap and swap
-        // Safe check using the local capture to ensure we don't write to a recycled bitmap
-        if (!currentBack.isRecycled) {
-            currentBack.setPixels(outPixels, 0, outWidth, 0, 0, outWidth, outHeight)
-            
-            // Recycle the old bitmap currently in StateFlow before replacing it
-            val oldBitmap = _differenceMap.value
-            if (oldBitmap != null && oldBitmap !== currentBack && !oldBitmap.isRecycled) {
-                oldBitmap.recycle()
-            }
-            
-            _differenceMap.value = currentBack
-            
-            // Swap references safely
-            frontBitmap = currentBack
-            backBitmap = currentFront
-        }
-
         image.close()
     }
 
     fun cleanup() {
-        // Recycle and clear the current bitmap held by StateFlow
-        val currentBitmap = _differenceMap.value
-        if (currentBitmap != null && !currentBitmap.isRecycled) {
-            currentBitmap.recycle()
-        }
-        _differenceMap.value = null
-        // Recycle bitmaps to free native memory
-        if (!frontBitmap.isRecycled) frontBitmap.recycle()
-        if (!backBitmap.isRecycled) backBitmap.recycle()
         referenceBuffer = null
     }
 
     private fun fillBuffer(src: ByteBuffer, dst: ByteArray, w: Int, h: Int, rowStride: Int, pixelStride: Int) {
         if (pixelStride == 1 && rowStride == w) {
-            // Contiguous — bulk copy
             src.get(dst, 0, dst.size)
             return
         }
-        // Strided — row-by-row bulk copy
         for (y in 0 until h) {
             val srcPos = y * rowStride
             val dstPos = y * w

@@ -1,7 +1,6 @@
 package org.havenapp.neruppu.ui.features.dashboard
 
-import android.graphics.Bitmap
-import androidx.camera.view.PreviewView
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -26,14 +25,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.LifecycleOwner
 import org.havenapp.neruppu.core.ui.theme.*
 import org.havenapp.neruppu.ui.R
 
@@ -46,18 +43,13 @@ fun DashboardScreen(
     accelerometerStable: Boolean,
     onToggleMonitoring: () -> Unit,
     // Camera integration
-    useFrontCamera: Boolean = false,
-    differenceMap: Bitmap? = null,
-    onBindCamera: (PreviewView, LifecycleOwner) -> Unit
+    useFrontCamera: Boolean = false
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Camera Background - Always Show
-        CameraPreviewBackground(
-            isMonitoring = isMonitoring,
-            onBindCamera = onBindCamera,
-            differenceMap = differenceMap
-        )
-
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -127,46 +119,7 @@ fun DashboardScreen(
     }
 }
 
-@Composable
-fun CameraPreviewBackground(
-    isMonitoring: Boolean,
-    onBindCamera: (PreviewView, LifecycleOwner) -> Unit,
-    differenceMap: Bitmap? = null
-) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var previewViewRef by remember { mutableStateOf<PreviewView?>(null) }
-            
-    LaunchedEffect(previewViewRef, lifecycleOwner) {
-        previewViewRef?.let {
-            onBindCamera(it, lifecycleOwner)
-        }
-    }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { context ->
-                PreviewView(context).apply {
-                    scaleType = PreviewView.ScaleType.FILL_CENTER
-                    previewViewRef = this
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-        
-        // Heatmap overlay
-        if (differenceMap != null) {
-            Image(
-                bitmap = differenceMap.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize().alpha(0.3f),
-                contentScale = ContentScale.FillBounds
-            )
-        }
-        
-        // Darken overlay to make UI readable
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
-    }
-}
 
 @Composable
 fun DashboardTopbar() {
@@ -420,8 +373,7 @@ fun DashboardIdlePreview() {
             audioLevel = 0f,
             lightLevel = 300f,
             accelerometerStable = true,
-            onToggleMonitoring = {},
-            onBindCamera = { _, _ -> }
+            onToggleMonitoring = {}
         )
     }
 }
@@ -436,8 +388,7 @@ fun DashboardGuardingPreview() {
             audioLevel = 42f,
             lightLevel = 310f,
             accelerometerStable = true,
-            onToggleMonitoring = {},
-            onBindCamera = { _, _ -> }
+            onToggleMonitoring = {}
         )
     }
 }

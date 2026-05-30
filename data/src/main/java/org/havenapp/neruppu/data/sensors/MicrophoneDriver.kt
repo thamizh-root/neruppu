@@ -79,9 +79,9 @@ class MicrophoneDriver(
                     // RMS (Root Mean Square) — better for impulsive sounds
                     val rms = sqrt(sumSq / read).toInt()
                     
-                    // Log RMS in debug to verify it's working
+                    // Log RMS in verbose mode to reduce logcat spam
                     if (rms > silenceFloor) {
-                         Log.d("MicrophoneDriver", "SPIKE detected: $rms (Floor: $silenceFloor)")
+                         Log.v("MicrophoneDriver", "SPIKE detected: $rms (Floor: $silenceFloor)")
                     }
                     
                     // Only emit if above a minimum noise floor OR every 3s for baseline update

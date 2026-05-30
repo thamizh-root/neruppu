@@ -37,7 +37,7 @@ class AccelerometerDriver(context: Context) {
     fun observeMotion(threshold: Float = 12f): Flow<Float> = callbackFlow {
         Log.d("AccelerometerDriver", "Registering accelerometer listener (Batched)")
         val listener = MotionListener(threshold) { magnitude ->
-            Log.i("AccelerometerDriver", "Motion detected! Magnitude: $magnitude")
+            Log.d("AccelerometerDriver", "Motion detected! Magnitude: $magnitude")
             trySend(magnitude)
         }
 
