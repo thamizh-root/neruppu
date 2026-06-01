@@ -58,6 +58,7 @@ class MonitoringService : LifecycleService() {
     lateinit var cameraManager: CameraManager
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var wakeLockRefreshJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var sensorsJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -192,16 +193,51 @@ class MonitoringService : LifecycleService() {
     }
 
     private fun startWakeLockIfNeeded() {
-        // Acquire wake lock when we have active work that needs CPU
         if (_isMonitoring.value) {
             acquireWakeLock()
+            startWakeLockRefresh()
         }
     }
 
     private fun stopWakeLockIfNeeded() {
-        // Release wake lock when no active work requires CPU
         if (!_isMonitoring.value) {
+            wakeLockRefreshJob?.cancel()
+            wakeLockRefreshJob = null
             releaseWakeLock()
+        }
+    }
+
+    private fun startWakeLockRefresh() {
+        wakeLockRefreshJob?.cancel()
+        wakeLockRefreshJob = serviceScope.launch {
+            while (isActive && _isMonitoring.value) {
+                delay(480 * 1000L) // Refresh every ~8 minutes (before 10-min timeout)
+                if (_isMonitoring.value) {
+                    val timeout = calculateWakeLockTimeout()
+                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                    if (wakeLock?.isHeld == true) {
+                        wakeLock?.release()
+                        Log.d("MonitoringService", "WakeLock refreshed (adaptive timeout: ${timeout/1000/60}min)")
+                    }
+                    wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Neruppu:MonitoringWakeLock")
+                    wakeLock?.acquire(timeout)
+                }
+            }
+        }
+    }
+
+    private fun calculateWakeLockTimeout(): Long {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+        val batteryLevel = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        val chargingStatus = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_STATUS)
+        val isCharging = chargingStatus == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                        chargingStatus == android.os.BatteryManager.BATTERY_STATUS_FULL
+
+        return when {
+            isCharging -> 10 * 60 * 1000L // 10 minutes when charging
+            batteryLevel < 20 -> 5 * 60 * 1000L // 5 minutes when battery low
+            batteryLevel < 50 -> 7 * 60 * 1000L // 7 minutes when medium battery
+            else -> 10 * 60 * 1000L // 10 minutes when high battery
         }
     }
 

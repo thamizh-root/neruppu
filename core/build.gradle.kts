@@ -22,6 +22,16 @@ android {
             )
         }
     }
+    dexOptions {
+        javaMaxHeapSize = "4g"
+        dexInProcess = true
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

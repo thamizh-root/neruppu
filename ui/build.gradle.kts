@@ -17,12 +17,27 @@ android {
     }
 
     buildTypes {
+        debug {
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+    dexOptions {
+        javaMaxHeapSize = "6g"
+        dexInProcess = true
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
         }
     }
     compileOptions {
