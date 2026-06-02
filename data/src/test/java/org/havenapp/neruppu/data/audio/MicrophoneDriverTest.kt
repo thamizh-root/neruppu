@@ -84,8 +84,8 @@ class MicrophoneDriverTest {
             driver.observeNoise().collect { results.add(it) }
         }
         
-        // Wait a bit to ensure nothing is emitted (less than 30 iterations)
-        advanceTimeBy(100)
+        // Wait a bit to ensure nothing is emitted (less than 30 iterations, 200ms per iteration during silence)
+        advanceTimeBy(5000)
         runCurrent()
         assertTrue(results.isEmpty())
         

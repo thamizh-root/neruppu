@@ -9,11 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.havenapp.neruppu.data.audio.AudioRecordFactory
 import org.havenapp.neruppu.data.audio.DefaultAudioRecordFactory
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 class MicrophoneDriver(
@@ -22,7 +22,9 @@ class MicrophoneDriver(
     private val sampleRate = 16000 // Reduced from 44100 for battery optimization
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-    private val silenceFloor = 20 // Lowered from 50 for better sensitivity
+    private val silenceFloor = 20
+    private val silencePollIntervalMs = 200 // Longer sleep during silence for battery optimization
+    private val activePollIntervalMs = 50 // Shorter sleep when noise detected
 
     private fun getBufferSize(): Int {
         return try {
@@ -61,7 +63,7 @@ class MicrophoneDriver(
         }
 
         val job = launch(Dispatchers.IO) {
-            var silenceCount = 0
+            var silentSamples = 0
             while (isActive) {
                 val read = try {
                     recorder.read(buffer, 0, bufferSize)
@@ -70,32 +72,31 @@ class MicrophoneDriver(
                     -1
                 }
                 
+                var currentRms = 0
                 if (read > 0) {
                     var sumSq = 0.0
                     for (i in 0 until read) {
                         val s = buffer[i].toDouble()
                         sumSq += s * s
                     }
-                    // RMS (Root Mean Square) — better for impulsive sounds
-                    val rms = sqrt(sumSq / read).toInt()
+                    currentRms = sqrt(sumSq / read).toInt()
                     
-                    // Log RMS in verbose mode to reduce logcat spam
-                    if (rms > silenceFloor) {
-                         Log.v("MicrophoneDriver", "SPIKE detected: $rms (Floor: $silenceFloor)")
+                    if (currentRms > silenceFloor) {
+                         Log.v("MicrophoneDriver", "SPIKE detected: $currentRms (Floor: $silenceFloor)")
                     }
                     
-                    // Only emit if above a minimum noise floor OR every 3s for baseline update
-                    if (rms > silenceFloor || silenceCount++ > 30) {
-                        silenceCount = 0
-                        trySend(rms)
+                    if (currentRms > silenceFloor || silentSamples++ > 30) {
+                        silentSamples = 0
+                        trySend(currentRms)
                     }
                 } else if (read < 0) {
                     Log.e("MicrophoneDriver", "AudioRecord read error: $read")
-                    break // Exit loop on error
+                    break
                 }
                 
-                // Battery optimization: throttle polling to reduce CPU overhead
-                kotlinx.coroutines.delay(10)
+                // Adaptive delay: longer sleep during silence (200ms), shorter when active (50ms)
+                val isSilent = currentRms <= silenceFloor
+                delay(if (isSilent) silencePollIntervalMs.toLong() else activePollIntervalMs.toLong())
             }
         }
 
