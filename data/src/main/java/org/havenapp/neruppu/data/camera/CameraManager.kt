@@ -15,6 +15,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.havenapp.neruppu.data.camera.analyzer.MotionAnalyzer
+import org.havenapp.neruppu.data.camera.analyzer.ContextBatteryLevelProvider
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -136,7 +137,11 @@ class CameraManager(private val context: Context) {
                     .build()
                 useCases.add(imageCapture!!)
 
-                motionAnalyzer = MotionAnalyzer(onMotionDetected, sensitivity)
+                motionAnalyzer = MotionAnalyzer(
+                    onMotionDetected,
+                    sensitivity,
+                    ContextBatteryLevelProvider(context)
+                )
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setResolutionSelector(analysisResolutionSelector)

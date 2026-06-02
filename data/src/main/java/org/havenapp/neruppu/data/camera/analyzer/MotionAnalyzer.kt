@@ -1,26 +1,57 @@
 package org.havenapp.neruppu.data.camera.analyzer
 
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import java.nio.ByteBuffer
 import kotlin.math.abs
 
+interface BatteryLevelProvider {
+    fun getBatteryLevel(): Int   // returns 0-100, or -1 if unknown
+}
+
+object DefaultBatteryLevelProvider : BatteryLevelProvider {
+    override fun getBatteryLevel(): Int = 100   // assume full battery
+}
+
+class ContextBatteryLevelProvider(private val context: Context) : BatteryLevelProvider {
+    override fun getBatteryLevel(): Int {
+        val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        return if (level == -1 || scale == -1) {
+            100   // assume full battery if we can't read
+        } else {
+            (level * 100 / scale)
+        }
+    }
+}
+
 class MotionAnalyzer(
     private val onMotionDetected: (Double) -> Unit,
-    private val sensitivity: Int = 15
+    private val sensitivity: Int = 15,
+    private val batteryLevelProvider: BatteryLevelProvider = DefaultBatteryLevelProvider
 ) : ImageAnalysis.Analyzer {
 
     internal var referenceBuffer: ByteArray? = null
     private var lastAnalysisTime = 0L
-    private val targetFps = 5
-    private val frameIntervalMs = 1000L / targetFps
 
     private val outWidth = 320
     private val outHeight = 240
 
     override fun analyze(image: ImageProxy) {
         val now = System.currentTimeMillis()
+        val batteryLevel = batteryLevelProvider.getBatteryLevel()
+        val currentTargetFps = when {
+            batteryLevel >= 50 -> 5
+            batteryLevel >= 20 -> 3
+            else -> 1
+        }
+        val frameIntervalMs = 1000L / currentTargetFps
         
         if (now - lastAnalysisTime < frameIntervalMs) {
             image.close()
