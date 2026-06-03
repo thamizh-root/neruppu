@@ -95,7 +95,7 @@ Run these commands from the project root directory using your command prompt (cm
 
 If Neruppu has been useful to you and you'd like to support its continued development, consider donating:
 
-- **Email**: @thamizh-root:matrix.org
+- **Matrix Contact:**: @thamizh-root:matrix.org
 
 Your support helps cover server costs, development time, and ensures Neruppu remains open-source and free for everyone.
 
