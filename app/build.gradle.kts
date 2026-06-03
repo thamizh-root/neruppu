@@ -23,6 +23,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -30,6 +35,18 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+    dexOptions {
+        javaMaxHeapSize = "6g"
+        dexInProcess = true
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+            // Uncomment the following line if you want to see test output in console
+            // showStandardStreams = true
         }
     }
     compileOptions {
