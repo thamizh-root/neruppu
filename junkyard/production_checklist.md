@@ -22,41 +22,47 @@
 
 ## ⚠️ PERFORMANCE ISSUES
 
-### 4. Busy-Wait Loop in Microphone Monitoring
+### 4. Busy-Wait Loop in Microphone Monitoring ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/sensors/MicrophoneDriver.kt:65-102`
 - **Issue**: Continuous polling without proper sleep causes CPU overhead
 - **Impact**: Battery drain when monitoring is active
 - **Note**: Has 10ms delay on silence but still active polling
+- **Status**: ✅ FIXED — Adaptive delay implemented (200ms silence, 50ms active noise)
 
-### 5. Bitmap Memory Management in MotionAnalyzer
+### 5. Bitmap Memory Management in MotionAnalyzer ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/analyzer/MotionAnalyzer.kt:37-38, 56-59`
 - **Issue**: Bitmaps created once but references swapped; large bitmaps held in memory
 - **Impact**: Potential memory pressure; double buffering may still cause GC pressure
 - **Note**: cleanup() doesn't recycle bitmaps (intentional) but they accumulate
+- **Status**: ✅ FIXED — Heatmap preview feature removed; `_differenceMap` field no longer exists. `referenceBuffer` is now a ByteArray, not a Bitmap.
 
-### 6. Camera Resolution at 640x480 May Not Be Optimal
+### 6. Camera Resolution at 640x480 May Not Be Optimal ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/CameraManager.kt:117-124`
 - **Issue**: Fixed resolution may be higher than needed for motion detection
 - **Impact**: Increased CPU/load on ImageAnalysis analyzer
+- **Status**: ✅ FIXED — ImageAnalysis uses 320x240; Preview/ImageCapture keep 640x480 for quality.
 
 ## ⚠️ MEMORY LEAK RISKS
 
-### 7. Camera Executor Thread Leak Risk
+### 7. Camera Executor Thread Leak Risk ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/CameraManager.kt:35-36, 194-197`
 - **Issue**: Single-thread executor may not be properly shut down on all paths
 - **Impact**: Potential memory leak if unbind() called before release()
 - **Note**: shutdown() in release() but not in cleanup path
+- **Status**: ✅ FIXED — `cameraExecutor.shutdown()` now called in both `unbind()` and `release()`.
 
-### 8. StateFlow Holding Bitmap References
+### 8. StateFlow Holding Bitmap References ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/analyzer/MotionAnalyzer.kt:33-34`
 - **Issue**: `_differenceMap` holds Bitmap reference; could prevent GC
 - **Impact**: Memory retained longer than necessary
+- **Status**: ✅ FIXED — Field removed during heatmap preview feature removal; no Bitmap references in flow anymore.
 
-### 13. MediaPlayer Potential Leak in Audio Player
+### 13. MediaPlayer Potential Leak in Audio Player ✅
 - **File**: `ui/src/main/java/org/havenapp/neruppu/ui/features/logs/LogsScreen.kt:312-387`
 - **Issue**: MediaPlayer created in prepareAsync() but may not be released if disposed before ready
 - **Impact**: Potential memory leak if user navigates away during async prepare
 - **Note**: DisposableEffect handles cleanup but MediaPlayer lifecycle edge cases exist
+- **Status**: ✅ FIXED — Added `isReleased` flag and guards in `setOnPreparedListener` to prevent race conditions on dispose.
 
 ## ⚠️ BATTERY PERFORMANCE ISSUES
 
@@ -64,23 +70,26 @@
 - **File**: `app/src/main/java/org/havenapp/neruppu/service/MonitoringService.kt:198-206, 262-267`
 - **Issue**: WakeLock acquired every 8 minutes for 10-minute timeout
 - **Impact**: Keeps CPU awake; could drain battery during extended monitoring
-- **Note**: No adaptive wake lock based on device state
+- **Status**: ⚠️ Partial — `isReleased` flag added, but `startWakeLockRefresh()` still creates a new WakeLock object every cycle instead of re-acquiring the existing one.
 
-### 10. Continuous Sensor Polling
+### 10. Continuous Sensor Polling ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/sensors/MicrophoneDriver.kt`
 - **Issue**: Audio monitoring runs in tight loop (10ms sleep on silence)
 - **Impact**: Significant battery drain during monitoring
 - **Note**: Sample rate reduced to 16kHz (good optimization)
+- **Status**: ✅ FIXED — Adaptive delay implemented (200ms silence, 50ms active).
 
-### 11. No Adaptive Frame Rate Based on Battery
+### 11. No Adaptive Frame Rate Based on Battery ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/analyzer/MotionAnalyzer.kt:25, 44-47`
 - **Issue**: Fixed 5 FPS regardless of device battery state
 - **Impact**: No power saving when battery is low
+- **Status**: ✅ FIXED — `MotionAnalyzer` now adjusts `currentTargetFps` based on battery level (5 FPS ≥50%, 3 FPS ≥20%, 1 FPS <20%).
 
-### 12. Accelerometer Uses SENSOR_DELAY_UI
+### 12. Accelerometer Uses SENSOR_DELAY_UI ✅
 - **File**: `data/src/main/java/org/havenapp/neruppu/data/sensors/AccelerometerDriver.kt:45-50`
 - **Issue**: Could use SENSOR_DELAY_NORMAL for better battery
 - **Impact**: Unnecessary power consumption for background monitoring
+- **Status**: ⚠️ Partial — `SENSOR_DELAY_UI` is still used with 500ms batching. Could downgrade to `SENSOR_DELAY_NORMAL` for even better battery.
 
 ## ✅ GOOD PRACTICES FOLLOWED
 
@@ -122,3 +131,99 @@
 4. **Check for Google Play requirements**:
    - Target SDK 35 is latest, comply with Play Store policies
    - Ensure all permissions have appropriate justifications
+
+## F-Droid Specific Requirements
+
+Add these to the production checklist to become F-Droid eligible:
+
+### F1. License File ✅
+- **Issue**: F-Droid requires an explicit license file at the repository root.
+- **Action**: Add `LICENSE` (GPL-3.0-only recommended for this project type).
+- **Impact**: Blocking for F-Droid inclusion.
+- **Status**: ✅ DONE — `LICENSE` file present at root (GPL-3.0).
+
+### F2. Non-Free Dependencies Policy
+- **Issue**: `androidx.security:security-crypto:1.1.0-alpha06` is alpha; F-Droid prefers stable releases.
+- **Action**: Upgrade to `1.1.0` stable when available.
+- **Status**: ⚠️ Acceptable for now, but verify on every dependency update.
+
+### F3. Reproducible Builds
+- **Action**: Ensure `versionCode` and `versionName` are deterministic (not generated from VCS metadata at build time).
+- **Action**: Ensure `gradle-wrapper.properties` is committed.
+- **Check**: `org.gradle.configuration-cache=true` is already present ✅.
+
+### F4. F-Droid Metadata
+- **Action**: Create `metadata/org.havenapp.neruppu/` with:
+  - `title`, `summary`, `description`
+  - `icon.png` (512x512), `featureGraphic.png` (1024x500)
+  - `screenshots/phone/` and `screenshots/sevenInch/` folders
+  - `changelogs/100.txt`
+
+### F5. Network Security
+- **Issue**: `LogLevel.ALL` in `NetworkModule.kt` logs HTTP tokens in release builds.
+- **Action**: Make logging conditional — `LogLevel.ALL` only for debug; `LogLevel.NONE` for release.
+- **Issue**: No `android:usesCleartextTraffic` restriction and no `networkSecurityConfig`.
+- **Action**: Add `android:usesCleartextTraffic="false"` to `<application>` tag and create `res/xml/network_security_config.xml`.
+
+### F6. FileProvider Restriction
+- **Issue**: `file_paths.xml` uses `path="."` which exposes the entire `filesDir`.
+- **Action**: Remove `path="."` and keep only `path="captures/"` and `path="audio_captures/"`.
+
+### F7. ProGuard Rules for Release Logging
+- **Issue**: Ktor logging plugin should be stripped/completely disabled in release.
+- **Action**: Add ProGuard rules to ensure the `Logging` plugin setup in `NetworkModule` does not execute in release builds.
+
+### F8. Gradle AGP Compatibility
+- **Issue**: AGP 8.2.2 + compileSdk 35 requires `android.suppressUnsupportedCompileSdk=35`.
+- **Action**: Upgrade to AGP 8.6.0+ to remove the suppression flag. F-Droid buildbots may use a different Gradle version.
+- **Impact**: Build failure risk on F-Droid server.
+
+### F9. Audio File Cleanup
+- **Issue**: `AudioRecorder.kt` writes `.mp4` clips to `filesDir/audio_captures/` with no post-upload cleanup.
+- **Action**: Delete audio files after successful Telegram/Matrix upload.
+- **Impact**: Storage exhaustion on long-running deployments.
+
+### F10. Signing Configuration
+- **Issue**: No `signingConfig` defined in release build.
+- **Action**: Add signing config placeholder (F-Droid will sign with its own key, but local testing needs a keystore).
+- **File**: `app/build.gradle.kts`.
+
+### F11. Post-Upload Media Cleanup Policy
+- **Issue**: No automatic or manual deletion of captured photos/audio after upload to Telegram or Matrix.
+- **Requirement**: Before launch, implement a media lifecycle policy:
+  - **Auto-delete after successful upload** — when a media file is successfully pushed to Telegram or Matrix, the local copy in `filesDir/captures/` and `filesDir/audio_captures/` must be deleted.
+  - **Mutual exclusion of upload targets** — users must be restricted to selecting at most one remote target (Telegram OR Matrix, not both). Simultaneous dual-target upload adds unnecessary complexity and increases the risk of partial-failure states leaving orphaned files.
+  - **Policy modes** — support at minimum: (a) **Manual delete** (user triggers from logs), (b) **Auto-delete after upload**, (c) **Periodic cleanup** (time/size-based eviction of old captures).
+  - **Security note** — if a capture file is deleted without an associated successful upload, the event log should preserve the `mediaUri` path factually but must not lose metadata about why the file is missing (to avoid silent evidence loss).
+
+### F12. Upload Status Indicator in Logs
+- **Issue**: `Event` model and `LogsScreen` do not expose whether a photo/audio was successfully uploaded to Telegram or Matrix.
+- **Requirement**: Each event in the logs must display an upload status Badge/indicator:
+  - States: `Pending upload`, `Uploaded (Telegram)`, `Uploaded (Matrix)`, `Upload failed`.
+  - The `Event` domain model needs an additional field (e.g., `uploadTarget: String?`, `uploadedAt: Instant?`) to persist this.
+  - This indicator must update when the transport call returns success/failure from `HandleSensorEventUseCase`.
+
+### F13. Unified Integration Config Popup
+- **Issue**: Telegram and Matrix configuration UIs (`TelegramSettingsSection.kt`, `MatrixSettingsSection.kt`) are full embedded rows in `SettingsScreen.kt`. The user wants them moved into a **reusable popup/dialog** so any future integration can use the same pattern.
+- **Requirement**: Refactor both config sections into a single `IntegrationConfigPopup` composable that accepts an integration type/config object. This keeps `SettingsScreen` clean and makes adding new providers (e.g., Signal, email, custom webhook) straightforward without touching settings screen structure.
+
+## Recommended Next Step Order
+
+1. **Phase 1 — Security & Compliance (Day 1)**:
+   - F5 (conditional LogLevel + ProGuard)
+   - F6 (FileProvider paths)
+   - F7 (cleartext traffic + network security config)
+   - F1 (LICENSE file)
+
+2. **Phase 2 — Build Hygiene (Day 1-2)**:
+   - F3 (reproducible builds)
+   - F8 (AGP upgrade path)
+   - F10 (signing config for local testing)
+
+3. **Phase 3 — Storage & Cleanup (Day 2)**:
+   - F9 (audio file deletion after upload)
+
+4. **Phase 4 — F-Droid Submission (Day 3-5)**:
+   - F4 (metadata directory)
+   - Test build via `fdroid build -v --server org.havenapp.neruppu`
+   - Submit merge request to `fdroiddata` repository

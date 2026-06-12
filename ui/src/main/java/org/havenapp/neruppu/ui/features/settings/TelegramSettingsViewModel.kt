@@ -18,16 +18,16 @@ import javax.inject.Inject
 data class TelegramUiState(
     val botToken: String = "",
     val chatId: String = "",
-    val isSaved: Boolean = false,
-    val isLoading: Boolean = false,
-    val testStatus: TestStatus? = null
-)
+    override val isSaved: Boolean = false,
+    override val isLoading: Boolean = false,
+    override val testStatus: TestStatus? = null
+) : IntegrationConfigUiState
 
 @HiltViewModel
 class TelegramSettingsViewModel @Inject constructor(
     private val configRepository: TelegramConfigRepository,
     @TelegramTransport private val alertTransport: AlertTransport
-) : ViewModel() {
+) : ViewModel(), IntegrationConfigActions {
 
     private val _uiState = MutableStateFlow(
         TelegramUiState(
@@ -46,13 +46,13 @@ class TelegramSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(chatId = value) }
     }
 
-    fun saveConfig() {
+    override fun saveConfig() {
         configRepository.botToken = _uiState.value.botToken
         configRepository.chatId = _uiState.value.chatId
         _uiState.update { it.copy(isSaved = configRepository.isComplete) }
     }
 
-    fun testConnection() {
+    override fun testConnection() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val result = alertTransport.testConnection()
@@ -68,7 +68,7 @@ class TelegramSettingsViewModel @Inject constructor(
         }
     }
 
-    fun sendMockMessage() {
+    override fun sendMockMessage() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val payload = AlertPayload.TextAlert(

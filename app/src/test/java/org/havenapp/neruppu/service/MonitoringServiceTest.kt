@@ -109,7 +109,7 @@ class MonitoringServiceTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         
         assertTrue(service.isMonitoring.value)
-        verify { cameraManager.bindCamera(any(), any(), any(), any(), any()) }
+        verify { cameraManager.bindCamera(any(), any(), any(), any()) }
         
         service.toggleMonitoring()
         assertFalse(service.isMonitoring.value)
@@ -120,7 +120,7 @@ class MonitoringServiceTest {
         service.setUiActive(true)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         
-        verify { cameraManager.bindCamera(any(), any(), any(), any(), any()) }
+        verify { cameraManager.bindCamera(any(), any(), any(), any()) }
         assertFalse(service.isMonitoring.value)
     }
 

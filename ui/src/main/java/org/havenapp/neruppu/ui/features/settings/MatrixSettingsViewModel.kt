@@ -19,21 +19,16 @@ data class MatrixUiState(
     val homeserverUrl: String = "",
     val roomId: String = "",
     val accessToken: String = "",
-    val isSaved: Boolean = false,
-    val isLoading: Boolean = false,
-    val testStatus: TestStatus? = null
-)
-
-data class TestStatus(
-    val success: Boolean,
-    val error: String? = null
-)
+    override val isSaved: Boolean = false,
+    override val isLoading: Boolean = false,
+    override val testStatus: TestStatus? = null
+) : IntegrationConfigUiState
 
 @HiltViewModel
 class MatrixSettingsViewModel @Inject constructor(
     private val configRepository: MatrixConfigRepository,
     @MatrixTransport private val alertTransport: AlertTransport
-) : ViewModel() {
+) : ViewModel(), IntegrationConfigActions {
 
     private val _uiState = MutableStateFlow(
         MatrixUiState(
@@ -57,14 +52,14 @@ class MatrixSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(accessToken = value) }
     }
 
-    fun saveConfig() {
+    override fun saveConfig() {
         configRepository.homeserverUrl = _uiState.value.homeserverUrl
         configRepository.roomId = _uiState.value.roomId
         configRepository.accessToken = _uiState.value.accessToken
         _uiState.update { it.copy(isSaved = configRepository.isComplete) }
     }
 
-    fun testConnection() {
+    override fun testConnection() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val result = alertTransport.testConnection()
@@ -80,7 +75,7 @@ class MatrixSettingsViewModel @Inject constructor(
         }
     }
 
-    fun sendMockMessage() {
+    override fun sendMockMessage() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val payload = AlertPayload.TextAlert(
