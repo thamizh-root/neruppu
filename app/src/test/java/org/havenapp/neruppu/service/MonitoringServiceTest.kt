@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.domain.model.SensorType
+import org.havenapp.neruppu.domain.repository.MediaUploadRepository
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.domain.usecase.AttachAudioToEventUseCase
 import org.havenapp.neruppu.domain.usecase.HandleSensorEventUseCase
@@ -47,6 +48,7 @@ class MonitoringServiceTest {
     private val sensorRepository = mockk<SensorRepository>(relaxed = true)
     private val handleUseCase = mockk<HandleSensorEventUseCase>(relaxed = true)
     private val attachUseCase = mockk<AttachAudioToEventUseCase>(relaxed = true)
+    private val mediaUploadRepository = mockk<MediaUploadRepository>(relaxed = true)
     private val cameraManager = mockk<CameraManager>(relaxed = true)
 
     private lateinit var service: MonitoringService
@@ -62,6 +64,7 @@ class MonitoringServiceTest {
         every { androidx.camera.lifecycle.ProcessCameraProvider.getInstance(any()) } returns mockFuture
 
         coEvery { handleUseCase.execute(any()) } returns Result.success(1L)
+        coEvery { mediaUploadRepository.enqueueUpload(any()) } just Runs
 
         val controller = Robolectric.buildService(MonitoringService::class.java)
         service = controller.get()
@@ -69,7 +72,7 @@ class MonitoringServiceTest {
         controller.create()
         
         // Manual injection AFTER create() to overwrite Hilt's real objects
-        val fieldNames = listOf("cameraManager", "sensorRepository", "handleSensorEventUseCase", "attachAudioToEventUseCase", "serviceScope", "savePhotosPref")
+        val fieldNames = listOf("cameraManager", "sensorRepository", "handleSensorEventUseCase", "attachAudioToEventUseCase", "mediaUploadRepository", "serviceScope", "savePhotosPref")
         fieldNames.forEach { name ->
             val field = MonitoringService::class.java.getDeclaredField(name)
             field.isAccessible = true
@@ -78,6 +81,7 @@ class MonitoringServiceTest {
                 "sensorRepository" -> field.set(service, sensorRepository)
                 "handleSensorEventUseCase" -> field.set(service, handleUseCase)
                 "attachAudioToEventUseCase" -> field.set(service, attachUseCase)
+                "mediaUploadRepository" -> field.set(service, mediaUploadRepository)
                 "serviceScope" -> field.set(service, CoroutineScope(testDispatcher + SupervisorJob()))
                 "savePhotosPref" -> field.set(service, false)
             }
@@ -99,6 +103,7 @@ class MonitoringServiceTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         
         coVerify(exactly = 1) { handleUseCase.execute(any()) }
+        coVerify(exactly = 1) { mediaUploadRepository.enqueueUpload(1L) }
     }
 
     @Test

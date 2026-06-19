@@ -33,6 +33,7 @@ import org.havenapp.neruppu.data.sensors.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import org.havenapp.neruppu.domain.model.SensorEvent
+import org.havenapp.neruppu.domain.repository.MediaUploadRepository
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.domain.usecase.HandleSensorEventUseCase
 import org.havenapp.neruppu.domain.usecase.AttachAudioToEventUseCase
@@ -53,6 +54,9 @@ class MonitoringService : LifecycleService() {
 
     @Inject
     lateinit var attachAudioToEventUseCase: AttachAudioToEventUseCase
+
+    @Inject
+    lateinit var mediaUploadRepository: MediaUploadRepository
 
     @Inject
     lateinit var cameraManager: CameraManager
@@ -542,6 +546,16 @@ class MonitoringService : LifecycleService() {
         
         if (result.isFailure) {
             Log.e("MonitoringService", "UseCase failed", result.exceptionOrNull())
+        }
+
+        if (id > 0) {
+            serviceScope.launch {
+                try {
+                    mediaUploadRepository.enqueueUpload(id)
+                } catch (e: Exception) {
+                    Log.w("MonitoringService", "Failed to enqueue media upload for event $id", e)
+                }
+            }
         }
         
         // Schedule deferred notification via WorkManager (Best Practice)

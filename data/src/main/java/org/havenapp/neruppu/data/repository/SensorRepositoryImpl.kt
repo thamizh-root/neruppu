@@ -15,12 +15,13 @@ import org.havenapp.neruppu.data.local.dao.EventDao
 import org.havenapp.neruppu.data.local.entity.toDomain
 import org.havenapp.neruppu.data.local.entity.toEntity
 import org.havenapp.neruppu.domain.model.Event
+import org.havenapp.neruppu.domain.model.UploadStatus
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import java.io.File
 
 class SensorRepositoryImpl(
     private val context: Context,
-    private val eventDao: EventDao
+    private val eventDao: EventDao,
 ) : SensorRepository {
     override fun getEvents(filter: String): Flow<PagingData<Event>> {
         return Pager(
@@ -50,9 +51,31 @@ class SensorRepositoryImpl(
         }
     }
 
+    override suspend fun updateEventUploadStatus(eventId: Long, status: UploadStatus, target: String?, uploadedAt: Long?, failureReason: String?) {
+        val entity = eventDao.getEventById(eventId)
+        if (entity != null) {
+            eventDao.updateEvent(entity.copy(
+                uploadStatusValue = when (status) {
+                    UploadStatus.PENDING -> 1
+                    UploadStatus.UPLOADED -> 2
+                    UploadStatus.FAILED -> 3
+                },
+                uploadTarget = target,
+                uploadedAt = uploadedAt,
+                failureReason = failureReason
+            ))
+            Log.d("SensorRepository", "Upload status updated for event $eventId: $status")
+        } else {
+            Log.e("SensorRepository", "Failed to update upload status: Event $eventId not found!")
+        }
+    }
+
+    override suspend fun getPendingUploadEvents(limit: Int): List<Event> {
+        return eventDao.getPendingUploadEvents(limit).map { it.toDomain() }
+    }
+
     override suspend fun clearEvents(deleteFiles: Boolean) = withContext(Dispatchers.IO) {
         if (deleteFiles) {
-            // Stream through DB in pages to avoid OOM
             var offset = 0
             val pageSize = 100
             while (true) {

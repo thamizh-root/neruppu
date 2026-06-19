@@ -42,13 +42,13 @@ import kotlinx.coroutines.flow.flowOf
 import org.havenapp.neruppu.core.ui.theme.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
+import org.havenapp.neruppu.domain.model.UploadStatus
 import org.havenapp.neruppu.ui.R
 import org.havenapp.neruppu.ui.components.ScreenHeader
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,12 +65,11 @@ fun LogsScreen(
             .fillMaxSize()
             .background(BackgroundPrimary)
     ) {
-        // Header
         ScreenHeader(title = "Events") {
             IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
-                    Icons.Default.DeleteSweep, 
-                    contentDescription = "Clear all", 
+                    Icons.Default.DeleteSweep,
+                    contentDescription = "Clear all",
                     tint = TextSecondary,
                     modifier = Modifier.size(24.dp)
                 )
@@ -87,7 +86,6 @@ fun LogsScreen(
             )
         }
 
-        // Filter Chips
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -209,7 +207,6 @@ fun EventItem(event: Event) {
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon container
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -223,9 +220,9 @@ fun EventItem(event: Event) {
                     modifier = Modifier.size(20.dp)
                 )
             }
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = when(event.sensorType) {
@@ -238,7 +235,7 @@ fun EventItem(event: Event) {
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = timeFormatter.format(event.timestamp),
@@ -251,9 +248,32 @@ fun EventItem(event: Event) {
                     } else if (event.audioUri != null) {
                         Badge("🎙 Audio", NeruppuBlueSoft, NeruppuBlue)
                     }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    when (event.uploadStatus) {
+                        UploadStatus.PENDING -> Badge("⏳ Pending upload", NeruppuAmberSoft, NeruppuAmber)
+                        UploadStatus.UPLOADED -> {
+                            val targetName = when (event.uploadTarget) {
+                                "TELEGRAM" -> "📤 Uploaded to Telegram"
+                                "MATRIX" -> "📤 Uploaded to Matrix"
+                                else -> "📤 Uploaded"
+                            }
+                            val targetBg = when (event.uploadTarget) {
+                                "TELEGRAM" -> NeruppuGreenSoft
+                                "MATRIX" -> NeruppuBlueSoft
+                                else -> NeruppuGreenSoft
+                            }
+                            val targetColor = when (event.uploadTarget) {
+                                "TELEGRAM" -> NeruppuGreen
+                                "MATRIX" -> NeruppuBlue
+                                else -> NeruppuGreen
+                            }
+                            Badge(targetName, targetBg, targetColor)
+                        }
+                        UploadStatus.FAILED -> Badge("⚠ Upload failed", NeruppuRedSoft, NeruppuRed)
+                    }
                 }
             }
-            
+
             IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(24.dp)) {
                 Icon(
                     if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -264,45 +284,47 @@ fun EventItem(event: Event) {
             }
         }
 
-        // Expanded Content
         if (expanded) {
-            Column(
-                modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    .padding(top = 4.dp)
-            ) {
-                if (event.mediaUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(event.mediaUri),
-                        contentDescription = "Event Photo",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black),
-                        contentScale = ContentScale.Fit
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
+            val mediaExists = event.mediaUri?.let { File(Uri.parse(it).path ?: "").exists() } ?: false
+            val audioExists = event.audioUri?.let { File(Uri.parse(it).path ?: "").exists() } ?: false
 
-                if (event.audioUri != null) {
-                    AudioPlayer(uriString = event.audioUri!!)
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-                
-                if (event.sensorType == SensorType.MICROPHONE) {
-                    Waveform(color = NeruppuBlue)
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                
-                val detailMeta = when(event.sensorType) {
-                    SensorType.CAMERA_MOTION -> "High confidence motion detected via CameraX analysis."
-                    SensorType.MICROPHONE -> "Sound level exceeded threshold."
-                    SensorType.LIGHT -> "Ambient light shifted significantly."
-                    else -> "Sensor trigger event."
-                }
-                Text(detailMeta, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+            if (mediaExists && event.mediaUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(event.mediaUri),
+                    contentDescription = "Event Photo",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else if (event.uploadStatus == UploadStatus.UPLOADED && !mediaExists) {
+                DeletedMediaPlaceholder("Image uploaded and deleted locally")
+                Spacer(modifier = Modifier.height(12.dp))
             }
+
+            if (audioExists && event.audioUri != null) {
+                AudioPlayer(uriString = event.audioUri!!)
+                Spacer(modifier = Modifier.height(12.dp))
+            } else if (event.uploadStatus == UploadStatus.UPLOADED && !audioExists) {
+                DeletedMediaPlaceholder("Audio uploaded and deleted locally")
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            if (event.sensorType == SensorType.MICROPHONE) {
+                Waveform(color = NeruppuBlue)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            val detailMeta = when(event.sensorType) {
+                SensorType.CAMERA_MOTION -> "High confidence motion detected via CameraX analysis."
+                SensorType.MICROPHONE -> "Sound level exceeded threshold."
+                SensorType.LIGHT -> "Ambient light shifted significantly."
+                else -> "Sensor trigger event."
+            }
+            Text(detailMeta, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -478,7 +500,7 @@ fun DeleteConfirmationDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -522,9 +544,6 @@ fun DeleteConfirmationDialog(
 @Preview(showBackground = true)
 @Composable
 fun LogsScreenPreview() {
-    // Note: This preview will not be functional as it doesn't have a real ViewModel
-    // but we can fix the compilation by not calling LogsScreen here if needed,
-    // or providing a mock/stub. For now, let's just comment it out to unblock build.
 }
 
 @Preview(showBackground = true)
@@ -537,6 +556,30 @@ fun LogsScreenEmptyPreview() {
 fun DeleteConfirmationDialogPreview() {
     NeruppuTheme {
         DeleteConfirmationDialog(onConfirm = {}, onDismiss = {})
+    }
+}
+
+@Composable
+fun DeletedMediaPlaceholder(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.CloudDone,
+            contentDescription = null,
+            tint = TextSecondary,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            color = TextSecondary,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 

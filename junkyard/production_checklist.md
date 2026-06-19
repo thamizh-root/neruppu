@@ -193,8 +193,50 @@ Add these to the production checklist to become F-Droid eligible:
 - **Requirement**: Before launch, implement a media lifecycle policy:
   - **Auto-delete after successful upload** — when a media file is successfully pushed to Telegram or Matrix, the local copy in `filesDir/captures/` and `filesDir/audio_captures/` must be deleted.
   - **Mutual exclusion of upload targets** — users must be restricted to selecting at most one remote target (Telegram OR Matrix, not both). Simultaneous dual-target upload adds unnecessary complexity and increases the risk of partial-failure states leaving orphaned files.
-  - **Policy modes** — support at minimum: (a) **Manual delete** (user triggers from logs), (b) **Auto-delete after upload**, (c) **Periodic cleanup** (time/size-based eviction of old captures).
-  - **Security note** — if a capture file is deleted without an associated successful upload, the event log should preserve the `mediaUri` path factually but must not lose metadata about why the file is missing (to avoid silent evidence loss).
+  - Delete photos/media after uploading, but keep event logs and show upload status such as `Uploaded to Telegram` or `Uploaded to Matrix`.
+  - Both logs and media can be deleted from the Logs screen delete button with password confirmation.
+  - Delete password must be set from the Settings screen. Users must be able to add, reset, and remove it.
+  - Security concern: if someone has app access, they may open Settings and reset/delete the password. A normal app-level password is not enough for high-risk protection.
+  - Network failure handling: pending media must remain stored locally and retry automatically until upload succeeds.
+- **Implementation steps**:
+  1. Add `AlertTarget` enum with `NONE`, `TELEGRAM`, and `MATRIX`.
+  2. Store the active target in encrypted settings.
+  3. Enforce mutual exclusion when saving Telegram or Matrix config:
+     - Saving Telegram sets target to `TELEGRAM` and clears Matrix config.
+     - Saving Matrix sets target to `MATRIX` and clears Telegram config.
+     - Upload worker reads only the active target.
+  4. Extend the `Event` domain/data model and Room entity with upload metadata:
+     - `uploadStatus`: `PENDING`, `UPLOADED`, or `FAILED`.
+     - `uploadTarget`: Telegram or Matrix.
+     - `uploadedAt`: upload success timestamp.
+     - `failureReason`: optional retry/debug text.
+  5. Save media paths in Room, but do not delete them until upload success is confirmed.
+  6. Create a `MediaUploadRepository` or extend `HandleSensorEventUseCase` so sensor events enqueue media uploads after capture.
+  7. Create a `MediaUploadWorker` using WorkManager with `NetworkType.CONNECTED` constraints.
+  8. Worker flow:
+     - fetch pending events with media paths.
+     - read active upload target.
+     - upload the media through Telegram or Matrix.
+     - on success, update event status to `UPLOADED`, set target and timestamp, then delete the local media file.
+     - on failure, update event status to `FAILED` or leave it pending, keep the media file, and retry later.
+  9. Use WorkManager exponential backoff for network failures.
+  10. Add upload status badges to `LogsScreen`:
+      - `Pending upload`
+      - `Uploaded to Telegram`
+      - `Uploaded to Matrix`
+      - `Upload failed`
+  11. If media was uploaded and deleted locally, show a placeholder such as `Uploaded and deleted locally` instead of previewing the file.
+  12. Add delete-password storage using salted PBKDF2 hash values, never plain text.
+  13. Add Settings UI for:
+      - set delete password
+      - change delete password
+      - remove delete password
+  14. Require old password or biometric confirmation before changing/removing the delete password.
+  15. Require password confirmation before deleting logs/media from the Logs screen.
+  16. Consider requiring the same password/biometric before opening sensitive Settings pages, because someone with unlocked app access could otherwise reset the delete password.
+  17. Optional stronger protection: add biometric confirmation for destructive actions and a decoy/empty mode when the wrong delete password is entered.
+  18. Optional cleanup policy: add age/size-based eviction for failed uploads, but never delete pending media before successful upload unless the user explicitly deletes the event log.
+
 
 ### F12. Upload Status Indicator in Logs
 - **Issue**: `Event` model and `LogsScreen` do not expose whether a photo/audio was successfully uploaded to Telegram or Matrix.
