@@ -1,7 +1,6 @@
 package org.havenapp.neruppu.data.security
 
-import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 class PasswordCryptoTest {

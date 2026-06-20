@@ -4,7 +4,6 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import dagger.multibindings.IntoSet
 import org.havenapp.neruppu.domain.di.MatrixTransport
 import org.havenapp.neruppu.domain.di.TelegramTransport
 import org.havenapp.neruppu.data.matrix.MatrixAlertTransport
@@ -45,18 +44,6 @@ abstract class TransportModule {
     @Singleton
     @TelegramTransport
     abstract fun bindTelegramTransport(
-        impl: TelegramAlertTransport
-    ): AlertTransport
-
-    @Binds
-    @IntoSet
-    abstract fun bindMatrixTransportIntoSet(
-        impl: MatrixAlertTransport
-    ): AlertTransport
-
-    @Binds
-    @IntoSet
-    abstract fun bindTelegramTransportIntoSet(
         impl: TelegramAlertTransport
     ): AlertTransport
 

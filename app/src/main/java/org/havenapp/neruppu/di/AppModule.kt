@@ -12,6 +12,7 @@ import dagger.hilt.components.SingletonComponent
 import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.data.local.AlertTargetStore
 import org.havenapp.neruppu.data.local.DeletePasswordStore
+import org.havenapp.neruppu.data.local.dao.EventDao
 import org.havenapp.neruppu.data.local.NeruppuDatabase
 import org.havenapp.neruppu.data.matrix.MatrixAlertTransport
 import org.havenapp.neruppu.data.repository.MediaUploadRepositoryImpl

@@ -5,12 +5,14 @@ import java.security.SecureRandom
 import java.security.spec.KeySpec
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
+import java.util.Base64
 
 object PasswordCrypto {
 
     private const val TAG = "PasswordCrypto"
     private const val SALT_LENGTH = 16
-    private const val HASH_LENGTH = 512
+    private const val HASH_LENGTH_BITS = 512
+    private const val HASH_LENGTH = 64
     private const val ITERATIONS = 310000
     private const val ALGORITHM = "PBKDF2WithHmacSHA256"
 
@@ -39,7 +41,7 @@ object PasswordCrypto {
     }
 
     private fun computeHash(password: CharArray, salt: ByteArray): ByteArray {
-        val spec: KeySpec = PBEKeySpec(password, salt, ITERATIONS, HASH_LENGTH)
+        val spec: KeySpec = PBEKeySpec(password, salt, ITERATIONS, HASH_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance(ALGORITHM)
         return factory.generateSecret(spec).encoded
     }
@@ -57,11 +59,11 @@ object PasswordCrypto {
         val combined = ByteArray(salt.size + hash.size)
         System.arraycopy(salt, 0, combined, 0, salt.size)
         System.arraycopy(hash, 0, combined, salt.size, hash.size)
-        return android.util.Base64.encodeToString(combined, android.util.Base64.NO_WRAP)
+        return Base64.getEncoder().withoutPadding().encodeToString(combined)
     }
 
     private fun decodeStoredValue(encoded: String): Pair<ByteArray, ByteArray> {
-        val combined = android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP)
+        val combined = Base64.getDecoder().decode(encoded)
         require(combined.size == SALT_LENGTH + HASH_LENGTH) {
             "Invalid stored password value length"
         }

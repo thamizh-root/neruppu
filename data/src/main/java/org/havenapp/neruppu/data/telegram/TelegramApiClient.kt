@@ -1,7 +1,7 @@
 package org.havenapp.neruppu.data.telegram
 
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -20,7 +20,7 @@ import javax.inject.Singleton
 class TelegramApiClient @Inject constructor(
     private val configStore: TelegramConfigStore
 ) {
-    private val client = HttpClient(Android) {
+        private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) { json() }
         install(HttpTimeout) {
             requestTimeoutMillis = 60_000

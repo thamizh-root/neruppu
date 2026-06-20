@@ -33,6 +33,8 @@ import org.havenapp.neruppu.data.sensors.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import org.havenapp.neruppu.domain.model.SensorEvent
+import org.havenapp.neruppu.domain.model.AlertTarget
+import org.havenapp.neruppu.domain.repository.AlertTargetRepository
 import org.havenapp.neruppu.domain.repository.MediaUploadRepository
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.domain.usecase.HandleSensorEventUseCase
@@ -54,6 +56,9 @@ class MonitoringService : LifecycleService() {
 
     @Inject
     lateinit var attachAudioToEventUseCase: AttachAudioToEventUseCase
+
+    @Inject
+    lateinit var alertTargetRepository: AlertTargetRepository
 
     @Inject
     lateinit var mediaUploadRepository: MediaUploadRepository
@@ -493,7 +498,10 @@ class MonitoringService : LifecycleService() {
                 if (uri != null && audioFile != null && eventId != -1L) {
                     Log.i("MonitoringService", "AUDIO CLIP CAPTURED: $uri. Attaching to event $eventId in background...")
                     serviceScope.launch {
-                        attachAudioToEventUseCase.execute(eventId, audioFile!!, System.currentTimeMillis())
+                        val attachResult = attachAudioToEventUseCase.execute(eventId, audioFile!!, System.currentTimeMillis())
+                        if (attachResult.isSuccess && alertTargetRepository.activeTarget != AlertTarget.NONE) {
+                            mediaUploadRepository.enqueueUpload(eventId)
+                        }
                     }
                 }
             }
@@ -548,7 +556,7 @@ class MonitoringService : LifecycleService() {
             Log.e("MonitoringService", "UseCase failed", result.exceptionOrNull())
         }
 
-        if (id > 0) {
+        if (id > 0 && type != SensorType.MICROPHONE && alertTargetRepository.activeTarget != AlertTarget.NONE) {
             serviceScope.launch {
                 try {
                     mediaUploadRepository.enqueueUpload(id)

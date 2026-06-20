@@ -5,6 +5,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.havenapp.neruppu.data.worker.MediaUploadWorker
+import org.havenapp.neruppu.domain.di.MatrixTransport
+import org.havenapp.neruppu.domain.di.TelegramTransport
 import org.havenapp.neruppu.domain.model.AlertPayload
 import org.havenapp.neruppu.domain.model.AlertTarget
 import org.havenapp.neruppu.domain.model.Event
@@ -23,8 +25,8 @@ class MediaUploadRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: android.content.Context,
     private val sensorRepository: SensorRepository,
     private val alertTargetRepository: AlertTargetRepository,
-    private val telegramTransport: AlertTransport,
-    private val matrixTransport: org.havenapp.neruppu.domain.transport.AlertTransport
+    @TelegramTransport private val telegramTransport: AlertTransport,
+    @MatrixTransport private val matrixTransport: AlertTransport
 ) : MediaUploadRepository {
 
     override suspend fun enqueueUpload(eventId: Long) {
@@ -46,65 +48,98 @@ class MediaUploadRepositoryImpl @Inject constructor(
         var hasFailure = false
 
         events.forEach { event ->
-            val mediaRef = event.mediaUri ?: event.audioUri
-            val mediaFile = mediaRef?.let { path ->
-                val file = File(path)
-                if (!file.exists()) {
+            val payload = when {
+                event.mediaUri != null -> {
+                    val mediaUri = event.mediaUri!!
+                    val file = File(mediaUri)
+                    if (!file.exists()) {
+                        sensorRepository.updateEventUploadStatus(
+                            eventId = event.id,
+                            status = UploadStatus.FAILED,
+                            target = target.name,
+                            uploadedAt = null,
+                            failureReason = "Media file not found: $mediaUri"
+                        )
+                        hasFailure = true
+                        return@forEach
+                    }
+                    AlertPayload.MediaAlert(
+                        sensorType = event.sensorType,
+                        message = event.description,
+                        mediaFile = MediaFile(
+                            absolutePath = mediaUri,
+                            mimeType = guessMimeType(mediaUri),
+                            sizeBytes = file.length(),
+                            timestamp = event.timestamp.toEpochMilli()
+                        ),
+                        timestamp = event.timestamp.toEpochMilli()
+                    )
+                }
+                event.audioUri != null -> {
+                    val audioUri = event.audioUri!!
+                    val file = File(audioUri)
+                    if (!file.exists()) {
+                        sensorRepository.updateEventUploadStatus(
+                            eventId = event.id,
+                            status = UploadStatus.FAILED,
+                            target = target.name,
+                            uploadedAt = null,
+                            failureReason = "Audio file not found: $audioUri"
+                        )
+                        hasFailure = true
+                        return@forEach
+                    }
+                    AlertPayload.MediaAlert(
+                        sensorType = event.sensorType,
+                        message = event.description,
+                        mediaFile = MediaFile(
+                            absolutePath = audioUri,
+                            mimeType = guessMimeType(audioUri),
+                            sizeBytes = file.length(),
+                            timestamp = event.timestamp.toEpochMilli()
+                        ),
+                        timestamp = event.timestamp.toEpochMilli()
+                    )
+                }
+                else -> {
+                    AlertPayload.TextAlert(
+                        sensorType = event.sensorType,
+                        message = event.description,
+                        timestamp = event.timestamp.toEpochMilli()
+                    )
+                }
+            }
+
+            val transport = when (target) {
+                AlertTarget.TELEGRAM -> telegramTransport
+                AlertTarget.MATRIX -> matrixTransport
+                AlertTarget.NONE -> null
+            }
+
+            if (transport != null) {
+                val result = transport.send(payload)
+
+                if (result.isSuccess) {
+                    sensorRepository.updateEventUploadStatus(
+                        eventId = event.id,
+                        status = UploadStatus.UPLOADED,
+                        target = target.name,
+                        uploadedAt = System.currentTimeMillis(),
+                        failureReason = null
+                    )
+                    event.mediaUri?.let { deleteMediaFile(it) }
+                    event.audioUri?.let { deleteMediaFile(it) }
+                } else {
+                    hasFailure = true
+                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     sensorRepository.updateEventUploadStatus(
                         eventId = event.id,
                         status = UploadStatus.FAILED,
                         target = target.name,
                         uploadedAt = null,
-                        failureReason = "Media file not found: $path"
+                        failureReason = error
                     )
-                    hasFailure = true
-                    return@let null
                 }
-
-                MediaFile(
-                    absolutePath = path,
-                    mimeType = guessMimeType(path),
-                    sizeBytes = file.length(),
-                    timestamp = event.timestamp.toEpochMilli()
-                )
-            }
-
-            if (mediaFile == null) {
-                return@forEach
-            }
-
-            val payload = AlertPayload.MediaAlert(
-                sensorType = event.sensorType,
-                message = event.description,
-                mediaFile = mediaFile,
-                timestamp = event.timestamp.toEpochMilli()
-            )
-
-            val result = when (target) {
-                AlertTarget.TELEGRAM -> telegramTransport.send(payload)
-                AlertTarget.MATRIX -> matrixTransport.send(payload)
-                AlertTarget.NONE -> Result.success(Unit)
-            }
-
-            if (result.isSuccess) {
-                sensorRepository.updateEventUploadStatus(
-                    eventId = event.id,
-                    status = UploadStatus.UPLOADED,
-                    target = target.name,
-                    uploadedAt = System.currentTimeMillis(),
-                    failureReason = null
-                )
-                deleteMediaFile(mediaFile.absolutePath)
-            } else {
-                hasFailure = true
-                val error = result.exceptionOrNull()?.message ?: "Unknown error"
-                sensorRepository.updateEventUploadStatus(
-                    eventId = event.id,
-                    status = UploadStatus.FAILED,
-                    target = target.name,
-                    uploadedAt = null,
-                    failureReason = error
-                )
             }
         }
 

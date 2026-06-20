@@ -39,6 +39,6 @@ interface EventDao {
     @Query("DELETE FROM events")
     suspend fun clearEvents()
 
-    @Query("SELECT * FROM events WHERE uploadStatusValue IN (1, 3) AND (mediaUri IS NOT NULL OR audioUri IS NOT NULL) ORDER BY timestamp ASC LIMIT :limit")
+    @Query("SELECT * FROM events WHERE uploadStatusValue IN (1, 3) ORDER BY timestamp ASC LIMIT :limit")
     suspend fun getPendingUploadEvents(limit: Int): List<EventEntity>
 }

@@ -154,7 +154,7 @@ class MediaUploadRepositoryTest {
     }
 
     @Test
-    fun `TC-MUP-05 Event without media is skipped`() = runBlocking {
+    fun `TC-MUP-05 Text event without media is sent and marked uploaded`() = runBlocking {
         val event = Event(
             id = 1L,
             sensorType = SensorType.ACCELEROMETER,
@@ -165,13 +165,19 @@ class MediaUploadRepositoryTest {
         )
         every { alertTargetRepository.activeTarget } returns AlertTarget.TELEGRAM
         coEvery { sensorRepository.getPendingUploadEvents(any()) } returns listOf(event)
+        coEvery { telegramTransport.send(any()) } returns Result.success(Unit)
 
         coEvery { sensorRepository.updateEventUploadStatus(any(), any(), any(), any(), any()) } just Runs
 
         val result = mediaUploadRepository.uploadPendingEvents()
 
         assertTrue(result)
-        coVerify(exactly = 0) { telegramTransport.send(any()) }
-        coVerify(exactly = 0) { sensorRepository.updateEventUploadStatus(any(), any(), any(), any(), any()) }
+        coVerify { sensorRepository.updateEventUploadStatus(
+            eventId = 1L,
+            status = UploadStatus.UPLOADED,
+            target = "TELEGRAM",
+            uploadedAt = any(),
+            failureReason = null
+        ) }
     }
 }
