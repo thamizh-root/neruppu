@@ -18,9 +18,31 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgeDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,21 +76,35 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
- fun LogsScreen(
-     viewModel: LogsViewModel,
-     hasDeletePassword: Boolean,
-     verifyDeletePassword: (String) -> Boolean,
-     onClearLogs: (Boolean) -> Unit
- ) {
-     val pagingItems = viewModel.events.collectAsLazyPagingItems()
-     val selectedFilter by viewModel.filter.collectAsState()
-     var showDeleteDialog by remember { mutableStateOf(false) }
+fun LogsScreen(
+    viewModel: LogsViewModel,
+    onRequestDelete: () -> Unit
+) {
+    val pagingItems = viewModel.events.collectAsLazyPagingItems()
+    val selectedFilter by viewModel.filter.collectAsState()
+    val deleteState by viewModel.deleteState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+
+    LaunchedEffect(deleteState.deleteMessage) {
+        val message = deleteState.deleteMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(
+            when (message) {
+                LogsDeleteMessage.Success -> "Events and media cleared"
+                is LogsDeleteMessage.Error -> message.text
+            }
+        )
+        viewModel.clearDeleteMessage()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundPrimary)
     ) {
+        SnackbarHost(hostState = snackbarHostState)
+
         ScreenHeader(title = "Events") {
             IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
@@ -80,17 +116,31 @@ import java.time.format.DateTimeFormatter
             }
         }
 
-if (showDeleteDialog) {
-             DeleteConfirmationDialog(
-                 hasPassword = hasDeletePassword,
-                 verifyPassword = verifyDeletePassword,
-                 onConfirm = { deleteFiles ->
-                     onClearLogs(deleteFiles)
-                     showDeleteDialog = false
-                 },
-                 onDismiss = { showDeleteDialog = false }
-             )
-         }
+        if (showDeleteDialog) {
+            DeleteConfirmationDialog(
+                onConfirm = {
+                    onRequestDelete()
+                    showDeleteDialog = false
+                },
+                onDismiss = { showDeleteDialog = false }
+            )
+        }
+
+        if (deleteState.showPasswordDialog) {
+            DeletePasswordDialog(
+                password = password,
+                onPasswordChange = { password = it },
+                onConfirm = {
+                    viewModel.clearLogs(password)
+                    password = ""
+                },
+                onDismiss = {
+                    viewModel.hidePasswordDialog()
+                    password = ""
+                },
+                isLoading = deleteState.isDeleting
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -484,100 +534,127 @@ fun formatTime(ms: Int): String {
 }
 
 @Composable
- fun DeleteConfirmationDialog(
-     hasPassword: Boolean,
-     verifyPassword: (String) -> Boolean,
-     onConfirm: (Boolean) -> Unit,
-     onDismiss: () -> Unit
- ) {
-      var deleteFiles by rememberSaveable { mutableStateOf(false) }
-      var passwordInput by rememberSaveable { mutableStateOf("") }
-      var passwordError by remember { mutableStateOf<String?>(null) }
+fun DeleteConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Clear all events and media?",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "This will permanently remove all recorded security events and their media files from this device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                Text(
+                    "A configured delete password must be verified before anything is removed.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = NeruppuRed),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Continue", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextSecondary)
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
 
-     AlertDialog(
-         onDismissRequest = onDismiss,
-         title = {
-             Text(
-                 "Clear all events?",
-                 style = MaterialTheme.typography.headlineSmall,
-                 color = TextPrimary
-             )
-         },
-         text = {
-             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                 Text(
-                     "This will remove all recorded security events from your log history.",
-                     style = MaterialTheme.typography.bodyMedium,
-                     color = TextSecondary
-                 )
-
-                 if (hasPassword) {
-                     OutlinedTextField(
-                         value = passwordInput,
-                         onValueChange = { 
-                             passwordInput = it 
-                             passwordError = null 
-                         },
-                         label = { Text("Delete Password") },
-                         visualTransformation = PasswordVisualTransformation(),
-                         singleLine = true,
-                         isError = passwordError != null,
-                         modifier = Modifier.fillMaxWidth()
-                     )
-                     passwordError?.let {
-                         Text(it, color = NeruppuRed, style = MaterialTheme.typography.bodySmall)
-                     }
-                 }
-
-                 Row(
-                     verticalAlignment = Alignment.CenterVertically,
-                     modifier = Modifier
-                         .fillMaxWidth()
-                         .clickable { if (!hasPassword) deleteFiles = !deleteFiles }
-                         .padding(vertical = 4.dp)
-                 ) {
-                     Checkbox(
-                         checked = deleteFiles,
-                         onCheckedChange = { if (!hasPassword) deleteFiles = it },
-                         colors = CheckboxDefaults.colors(checkedColor = NeruppuOrange)
-                     )
-                     Spacer(modifier = Modifier.width(8.dp))
-                     Text(
-                         "Also delete media files from device storage",
-                         style = MaterialTheme.typography.bodyMedium,
-                         color = TextPrimary
-                     )
-                 }
-             }
-         },
-         confirmButton = {
-             Button(
-                 onClick = {
-                     if (hasPassword) {
-                         if (verifyPassword(passwordInput)) {
-                             onConfirm(deleteFiles)
-                         } else {
-                             passwordError = "Incorrect password"
-                         }
-                     } else {
-                         onConfirm(deleteFiles)
-                     }
-                 },
-                 colors = ButtonDefaults.buttonColors(containerColor = NeruppuRed),
-                 shape = RoundedCornerShape(8.dp)
-             ) {
-                 Text("Clear All", fontWeight = FontWeight.Bold)
-             }
-         },
-         dismissButton = {
-             TextButton(onClick = onDismiss) {
-                 Text("Cancel", color = TextSecondary)
-             }
-         },
-         containerColor = Color.White,
-         shape = RoundedCornerShape(16.dp)
-     )
- }
+@Composable
+fun DeletePasswordDialog(
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    isLoading: Boolean
+) {
+    AlertDialog(
+        onDismissRequest = if (isLoading) { {} } else onDismiss,
+        title = {
+            Text(
+                "Verify delete password",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Enter the delete password to remove all events and media files.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Delete password", color = TextSecondary) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = NeruppuOrange,
+                        focusedBorderColor = NeruppuOrange,
+                        unfocusedBorderColor = BorderTertiary,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = password.isNotBlank() && !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = NeruppuOrange),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text("Clear All", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
+                Text("Cancel", color = TextSecondary)
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
 
 @Preview(showBackground = true)
 @Composable
@@ -590,17 +667,12 @@ fun LogsScreenEmptyPreview() {
 }
 
 @Preview
- @Composable
- fun DeleteConfirmationDialogPreview() {
-     NeruppuTheme {
-         DeleteConfirmationDialog(
-             hasPassword = false,
-             verifyPassword = { false },
-             onConfirm = {},
-             onDismiss = {}
-         )
-     }
- }
+@Composable
+fun DeleteConfirmationDialogPreview() {
+    NeruppuTheme {
+        DeleteConfirmationDialog(onConfirm = {}, onDismiss = {})
+    }
+}
 
 @Composable
 fun DeletedMediaPlaceholder(text: String) {

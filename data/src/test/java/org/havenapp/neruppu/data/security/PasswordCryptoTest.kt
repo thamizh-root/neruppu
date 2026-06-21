@@ -1,9 +1,30 @@
 package org.havenapp.neruppu.data.security
 
-import org.junit.Assert.*
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.security.SecureRandom
+import java.security.spec.KeySpec
+import java.util.Base64
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 class PasswordCryptoTest {
+
+    private fun createLegacyHash(password: String, salt: ByteArray, iterations: Int, bits: Int): ByteArray {
+        val spec: KeySpec = PBEKeySpec(password.toCharArray(), salt, iterations, bits)
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        return factory.generateSecret(spec).encoded
+    }
+
+    private fun encodeLegacyStoredValue(password: String): String {
+        val salt = ByteArray(16)
+        SecureRandom().nextBytes(salt)
+        val hash = createLegacyHash(password, salt, 310000, 512)
+        val combined = ByteArray(salt.size + hash.size)
+        System.arraycopy(salt, 0, combined, 0, salt.size)
+        System.arraycopy(hash, 0, combined, salt.size, hash.size)
+        return Base64.getEncoder().encodeToString(combined)
+    }
 
     @Test
     fun `TC-CRYPTO-01 Hash produces non-empty base64 string`() {
@@ -70,5 +91,18 @@ class PasswordCryptoTest {
         val password = "myPassword123"
         val hash = PasswordCrypto.hashPassword(password)
         assertTrue(hash != password)
+    }
+
+    @Test
+    fun `TC-CRYPTO-11 Legacy 512-bit hash verifies correctly`() {
+        val password = "legacyPassword123"
+        val legacyHash = encodeLegacyStoredValue(password)
+        assertTrue(PasswordCrypto.verifyPassword(password, legacyHash))
+    }
+
+    @Test
+    fun `TC-CRYPTO-12 Legacy 512-bit hash rejects wrong password`() {
+        val legacyHash = encodeLegacyStoredValue("legacyPassword123")
+        assertTrue(!PasswordCrypto.verifyPassword("wrongPassword", legacyHash))
     }
 }

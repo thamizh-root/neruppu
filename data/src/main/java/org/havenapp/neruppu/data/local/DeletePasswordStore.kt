@@ -1,7 +1,6 @@
 package org.havenapp.neruppu.data.local
 
 import android.content.Context
-import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -16,21 +15,16 @@ class DeletePasswordStore @Inject constructor(
 ) : DeletePasswordRepository {
 
     private val prefs by lazy {
-        runCatching {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                "neruppu_delete_password",
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        }.getOrElse {
-            Log.e("DeletePasswordStore", "Encrypted prefs failed, falling back", it)
-            context.getSharedPreferences("neruppu_delete_password_fallback", Context.MODE_PRIVATE)
-        }
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "neruppu_delete_password",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     override fun hasPassword(): Boolean {
@@ -38,22 +32,19 @@ class DeletePasswordStore @Inject constructor(
     }
 
     override fun setPassword(password: String) {
+        require(password.isNotBlank()) { "Delete password cannot be empty" }
         val hash = PasswordCrypto.hashPassword(password)
         prefs.edit().putString(KEY_HASH, hash).apply()
-        Log.d("DeletePasswordStore", "Delete password set")
     }
 
     override fun verifyPassword(password: String): Boolean {
         val storedHash = prefs.getString(KEY_HASH, null) ?: return false
-        val valid = PasswordCrypto.verifyPassword(password, storedHash)
-        Log.d("DeletePasswordStore", "Password verification result: $valid")
-        return valid
+        return PasswordCrypto.verifyPassword(password, storedHash)
     }
 
     override fun removePassword(oldPassword: String): Boolean {
         if (!verifyPassword(oldPassword)) return false
         prefs.edit().remove(KEY_HASH).apply()
-        Log.d("DeletePasswordStore", "Delete password removed")
         return true
     }
 

@@ -31,7 +31,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
 import org.havenapp.neruppu.core.ui.theme.NeruppuOrange
 import org.havenapp.neruppu.data.camera.CameraManager
-import org.havenapp.neruppu.domain.repository.DeletePasswordRepository
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.service.MonitoringService
 import org.havenapp.neruppu.ui.features.dashboard.DashboardScreen
@@ -50,9 +49,6 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var cameraManager: CameraManager
-
-    @Inject
-    lateinit var deletePasswordRepository: DeletePasswordRepository
 
     private val monitoringService = mutableStateOf<MonitoringService?>(null)
     private var isBound = false
@@ -230,14 +226,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-1 -> {
-                                 LogsScreen(
-                                     viewModel = logsViewModel,
-                                     hasDeletePassword = deletePasswordRepository.hasPassword(),
-                                     verifyDeletePassword = { deletePasswordRepository.verifyPassword(it) },
-                                     onClearLogs = { deleteFiles -> logsViewModel.clearLogs(deleteFiles) }
-                                 )
-                             }
+                            1 -> {
+                                LogsScreen(
+                                    viewModel = logsViewModel,
+                                    onRequestDelete = { logsViewModel.requestDelete() }
+                                )
+                            }
                             2 -> {
                                 SettingsScreen(
                                     motionEnabled = motionEnabled,
