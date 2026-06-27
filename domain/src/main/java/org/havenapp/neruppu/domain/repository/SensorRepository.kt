@@ -12,4 +12,5 @@ interface SensorRepository {
     suspend fun updateEventUploadStatus(eventId: Long, status: UploadStatus, target: String?, uploadedAt: Long? = null, failureReason: String? = null)
     suspend fun clearEvents(deleteFiles: Boolean = false)
     suspend fun getPendingUploadEvents(limit: Int = 50): List<Event>
+    suspend fun getLastEventTimestamp(): Long?
 }

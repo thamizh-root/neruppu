@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">Neruppu</string>
     <string name="dashboard_live_sensors">LIVE SENSORS</string>
     <string name="dashboard_stop_monitoring">Stop monitoring</string>
     <string name="dashboard_start_guarding">Start guarding</string>

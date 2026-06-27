@@ -90,6 +90,12 @@ class MonitoringService : LifecycleService() {
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring
 
+    private val _sessionStartTime = MutableStateFlow(0L)
+    val sessionStartTime: StateFlow<Long> = _sessionStartTime
+
+    private val _lastGuardedTime = MutableStateFlow(0L)
+    val lastGuardedTime: StateFlow<Long> = _lastGuardedTime
+
     private val notificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     }
@@ -164,8 +170,11 @@ class MonitoringService : LifecycleService() {
         audioRecorder = AudioRecorder(this)
         
         updatePrefValues()
-        getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-            .registerOnSharedPreferenceChangeListener(prefsListener)
+        val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+
+        _sessionStartTime.value = prefs.getLong("session_start_time", 0L)
+        _lastGuardedTime.value = prefs.getLong("last_guarded_time", 0L)
 
         startHeartbeat()
         // Sensors will be started based on isMonitoring or UI visibility
@@ -294,17 +303,27 @@ class MonitoringService : LifecycleService() {
     }
 
     fun toggleMonitoring() {
+        val now = System.currentTimeMillis()
         _isMonitoring.value = !_isMonitoring.value
         if (_isMonitoring.value) {
             Log.d("MonitoringService", "Monitoring ACTIVATED")
+            _sessionStartTime.value = now
+            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                .edit()
+                .putLong("session_start_time", now)
+                .remove("last_guarded_time")
+                .apply()
             startWakeLockIfNeeded()
-            // Ensure service is running as foreground when monitoring is ON
             updateNotification()
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
+            _lastGuardedTime.value = now
+            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                .edit()
+                .remove("session_start_time")
+                .putLong("last_guarded_time", now)
+                .apply()
             stopWakeLockIfNeeded()
-            // When monitoring is OFF, we might still be in foreground if UI is active
-            // but updateNotification will handle the startForeground/stopForeground logic
             updateNotification()
         }
         startMonitoringIfNeeded()

@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 
 import androidx.compose.ui.tooling.preview.Preview
 import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
+import org.havenapp.neruppu.core.ui.theme.*
 
 /**
  * A pixel-perfect, real-time visualization dashboard inspired by Adafruit heatmaps.
@@ -23,10 +24,9 @@ fun PixelPerfectDashboard(
     motionLevel: Float, // 0.0 to 100.0
     audioLevel: Float,  // Normalized 0.0 to 1.0
     lightLevel: Float,  // Normalized 0.0 to 1.0
-    backgroundColor: Color = Color(0xFF222222)
+    backgroundColor: Color = ChartBackground,
+    historySize: Int = 100
 ) {
-    // History buffers for the "waves"
-    val historySize = 100
     val motionHistory = remember { mutableStateListOf<Float>().apply { repeat(historySize) { add(0f) } } }
     val audioHistory = remember { mutableStateListOf<Float>().apply { repeat(historySize) { add(0f) } } }
     val lightHistory = remember { mutableStateListOf<Float>().apply { repeat(historySize) { add(0f) } } }
@@ -50,9 +50,9 @@ fun PixelPerfectDashboard(
         val sectionHeight = height / 3
 
         // Colors
-        val motionColor = Color(0xFFFFD700) // Yellow
-        val audioColor = Color(0xFF00BFFF)  // Deep Sky Blue
-        val lightColor = Color(0xFF32CD32)  // Lime Green
+        val motionColor = ChartYellow
+        val audioColor = ChartBlue
+        val lightColor = ChartGreen
 
         // Draw Motion (Top)
         motionHistory.forEachIndexed { index, value ->
@@ -88,7 +88,7 @@ fun PixelPerfectDashboard(
         }
 
         // Draw Grid Lines
-        val gridColor = Color.White.copy(alpha = 0.1f)
+        val gridColor = BackgroundPrimary.copy(alpha = 0.1f)
         drawLine(gridColor, Offset(0f, sectionHeight), Offset(width, sectionHeight), 1f)
         drawLine(gridColor, Offset(0f, sectionHeight * 2), Offset(width, sectionHeight * 2), 1f)
     }

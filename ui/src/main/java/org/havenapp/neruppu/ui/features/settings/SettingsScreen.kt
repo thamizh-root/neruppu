@@ -116,15 +116,10 @@ fun SettingsScreen(
     var changeConfirmPassword by remember { mutableStateOf("") }
     var removeCurrentPassword by remember { mutableStateOf("") }
 
-    LaunchedEffect(deletePasswordUiState.message) {
-        val message = deletePasswordUiState.message ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(
-            when (message) {
-                DeletePasswordMessage.Success -> "Delete password updated"
-                is DeletePasswordMessage.Error -> message.text
-            }
-        )
-        deletePasswordViewModel.clearMessage()
+    LaunchedEffect(deletePasswordUiState.successMessage, deletePasswordUiState.errorMessage) {
+        val message = deletePasswordUiState.successMessage ?: deletePasswordUiState.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        deletePasswordViewModel.clearMessages()
     }
 
     val telegramFields = listOf(
@@ -294,10 +289,11 @@ fun SettingsScreen(
         confirmText = "Set password",
         isVisible = showSetupPasswordDialog,
         onConfirm = {
-            deletePasswordViewModel.onSetupPassword(setupNewPassword, setupConfirmPassword)
-            showSetupPasswordDialog = false
-            setupNewPassword = ""
-            setupConfirmPassword = ""
+            deletePasswordViewModel.setPassword(setupNewPassword, setupConfirmPassword) {
+                showSetupPasswordDialog = false
+                setupNewPassword = ""
+                setupConfirmPassword = ""
+            }
         },
         onDismiss = {
             showSetupPasswordDialog = false
@@ -332,11 +328,12 @@ fun SettingsScreen(
         confirmText = "Change password",
         isVisible = showChangePasswordDialog,
         onConfirm = {
-            deletePasswordViewModel.onChangePassword(changeCurrentPassword, changeNewPassword, changeConfirmPassword)
-            showChangePasswordDialog = false
-            changeCurrentPassword = ""
-            changeNewPassword = ""
-            changeConfirmPassword = ""
+            deletePasswordViewModel.changePassword(changeCurrentPassword, changeNewPassword, changeConfirmPassword) {
+                showChangePasswordDialog = false
+                changeCurrentPassword = ""
+                changeNewPassword = ""
+                changeConfirmPassword = ""
+            }
         },
         onDismiss = {
             showChangePasswordDialog = false
@@ -360,9 +357,10 @@ fun SettingsScreen(
         confirmText = "Remove password",
         isVisible = showRemovePasswordDialog,
         onConfirm = {
-            deletePasswordViewModel.onRemovePassword(removeCurrentPassword)
-            showRemovePasswordDialog = false
-            removeCurrentPassword = ""
+            deletePasswordViewModel.removePassword(removeCurrentPassword) {
+                showRemovePasswordDialog = false
+                removeCurrentPassword = ""
+            }
         },
         onDismiss = {
             showRemovePasswordDialog = false

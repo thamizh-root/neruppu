@@ -22,14 +22,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.hilt.navigation.compose.hiltViewModel
-import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
+import org.havenapp.neruppu.core.ui.theme.BackgroundSecondary
 import org.havenapp.neruppu.core.ui.theme.NeruppuOrange
+import org.havenapp.neruppu.core.ui.theme.NeruppuTheme
+import org.havenapp.neruppu.core.ui.theme.TextPrimary
+import org.havenapp.neruppu.core.ui.theme.TextSecondary
 import org.havenapp.neruppu.data.camera.CameraManager
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.service.MonitoringService
@@ -134,7 +138,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     bottomBar = {
                         NavigationBar(
-                            containerColor = Color(0xFFF7F7F7), // Match BackgroundSecondary
+                            containerColor = BackgroundSecondary,
                             modifier = Modifier.height(80.dp),
                             tonalElevation = 0.dp
                         ) {
@@ -142,12 +146,12 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
                                 icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                label = { Text("Home", style = MaterialTheme.typography.labelMedium) },
+                                label = { Text(stringResource(R.string.nav_home), style = MaterialTheme.typography.labelMedium) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Color.Black,
-                                    selectedTextColor = Color.Black,
-                                    unselectedIconColor = Color(0xFF777777),
-                                    unselectedTextColor = Color(0xFF777777),
+                                    selectedIconColor = TextPrimary,
+                                    selectedTextColor = TextPrimary,
+                                    unselectedIconColor = TextSecondary,
+                                    unselectedTextColor = TextSecondary,
                                     indicatorColor = NeruppuOrange.copy(alpha = 0.1f)
                                 )
                             )
@@ -155,12 +159,12 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
                                 icon = { Icon(Icons.Default.List, contentDescription = null) },
-                                label = { Text("Events", style = MaterialTheme.typography.labelMedium) },
+                                label = { Text(stringResource(R.string.nav_events), style = MaterialTheme.typography.labelMedium) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Color.Black,
-                                    selectedTextColor = Color.Black,
-                                    unselectedIconColor = Color(0xFF777777),
-                                    unselectedTextColor = Color(0xFF777777),
+                                    selectedIconColor = TextPrimary,
+                                    selectedTextColor = TextPrimary,
+                                    unselectedIconColor = TextSecondary,
+                                    unselectedTextColor = TextSecondary,
                                     indicatorColor = NeruppuOrange.copy(alpha = 0.1f)
                                 )
                             )
@@ -168,12 +172,12 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
                                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                label = { Text("Settings", style = MaterialTheme.typography.labelMedium) },
+                                label = { Text(stringResource(R.string.nav_settings), style = MaterialTheme.typography.labelMedium) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Color.Black,
-                                    selectedTextColor = Color.Black,
-                                    unselectedIconColor = Color(0xFF777777),
-                                    unselectedTextColor = Color(0xFF777777),
+                                    selectedIconColor = TextPrimary,
+                                    selectedTextColor = TextPrimary,
+                                    unselectedIconColor = TextSecondary,
+                                    unselectedTextColor = TextSecondary,
                                     indicatorColor = NeruppuOrange.copy(alpha = 0.1f)
                                 )
                             )
@@ -190,6 +194,8 @@ class MainActivity : ComponentActivity() {
                                     val motionLevel by service.motionLevel.collectAsState()
                                     val audioLevel by service.audioLevel.collectAsState()
                                     val lightLevel by service.lightLevel.collectAsState()
+                                    val sessionStartTime by service.sessionStartTime.collectAsState()
+                                    val lastGuardedTime by service.lastGuardedTime.collectAsState()
 
                                     DashboardScreen(
                                         isMonitoring = isMonitoring,
@@ -210,7 +216,9 @@ class MainActivity : ComponentActivity() {
                                             }
                                             service.toggleMonitoring() 
                                         },
-                                        useFrontCamera = useFrontCamera
+                                        useFrontCamera = useFrontCamera,
+                                        sessionStartTime = sessionStartTime,
+                                        lastGuardedTime = lastGuardedTime
                                     )
                                     
                                     val lifecycleOwner = LocalLifecycleOwner.current

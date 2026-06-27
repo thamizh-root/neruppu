@@ -74,6 +74,10 @@ class SensorRepositoryImpl(
         return eventDao.getPendingUploadEvents(limit).map { it.toDomain() }
     }
 
+    override suspend fun getLastEventTimestamp(): Long? {
+        return eventDao.getLastEventTimestamp()
+    }
+
     override suspend fun clearEvents(deleteFiles: Boolean) = withContext(Dispatchers.IO) {
         if (deleteFiles) {
             var offset = 0
