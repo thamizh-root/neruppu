@@ -40,8 +40,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,11 +93,11 @@ fun SettingsScreen(
     pushAlerts: Boolean,
     onPushAlertsToggle: (Boolean) -> Unit,
     savePhotos: Boolean,
-    onSavePhotosToggle: (Boolean) -> Unit
+    onSavePhotosToggle: (Boolean) -> Unit,
+    telegramViewModel: TelegramSettingsViewModel = hiltViewModel(),
+    matrixViewModel: MatrixSettingsViewModel = hiltViewModel(),
+    deletePasswordViewModel: DeletePasswordSettingsViewModel = hiltViewModel()
 ) {
-    val telegramViewModel: TelegramSettingsViewModel = hiltViewModel()
-    val matrixViewModel: MatrixSettingsViewModel = hiltViewModel()
-    val deletePasswordViewModel: DeletePasswordSettingsViewModel = hiltViewModel()
 
     val telegramUiState by telegramViewModel.uiState.collectAsState()
     val matrixUiState by matrixViewModel.uiState.collectAsState()
@@ -118,7 +120,10 @@ fun SettingsScreen(
 
     LaunchedEffect(deletePasswordUiState.successMessage, deletePasswordUiState.errorMessage) {
         val message = deletePasswordUiState.successMessage ?: deletePasswordUiState.errorMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
+        snackbarHostState.showSnackbar(
+            message = message,
+            duration = SnackbarDuration.Short
+        )
         deletePasswordViewModel.clearMessages()
     }
 
@@ -160,111 +165,115 @@ fun SettingsScreen(
         )
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundPrimary)
-    ) {
-        ScreenHeader(title = "Settings")
-
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = BackgroundPrimary,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(12.dp)
+                .padding(innerPadding)
         ) {
-            SnackbarHost(hostState = snackbarHostState)
+            ScreenHeader(title = "Settings")
 
-            SectionTitle("Sensors")
-            SettingsList {
-                SettingRow(
-                    icon = Icons.Default.CameraAlt,
-                    label = "Motion detection",
-                    subLabel = "CameraX analysis",
-                    checked = motionEnabled,
-                    onCheckedChange = onMotionToggle
-                )
-                SettingRow(
-                    icon = Icons.Default.Mic,
-                    label = "Acoustic monitor",
-                    subLabel = "Mic level tracking",
-                    checked = soundEnabled,
-                    onCheckedChange = onSoundToggle
-                )
-                SettingRow(
-                    icon = Icons.Default.WbSunny,
-                    label = "Luminosity",
-                    subLabel = "Ambient light sensor",
-                    checked = lightEnabled,
-                    onCheckedChange = onLightToggle
-                )
-            }
-
-            SectionTitle("Sensitivity")
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(BackgroundSecondary, RoundedCornerShape(12.dp))
-                    .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp))
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(12.dp)
             ) {
-                SliderWrap(
-                    label = "Motion threshold",
-                    value = motionSensitivity,
-                    onValueChange = onMotionSensitivityChange,
-                    displayValue = if (motionSensitivity < 0.3f) "Low" else if (motionSensitivity < 0.7f) "Medium" else "High",
-                    color = NeruppuOrange
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                SliderWrap(
-                    label = "Sound threshold",
-                    value = soundThreshold,
-                    onValueChange = onSoundThresholdChange,
-                    displayValue = "${(soundThreshold * 100).toInt()} dB",
-                    color = NeruppuBlue
-                )
-            }
+                SectionTitle("Sensors")
+                SettingsList {
+                    SettingRow(
+                        icon = Icons.Default.CameraAlt,
+                        label = "Motion detection",
+                        subLabel = "CameraX analysis",
+                        checked = motionEnabled,
+                        onCheckedChange = onMotionToggle
+                    )
+                    SettingRow(
+                        icon = Icons.Default.Mic,
+                        label = "Acoustic monitor",
+                        subLabel = "Mic level tracking",
+                        checked = soundEnabled,
+                        onCheckedChange = onSoundToggle
+                    )
+                    SettingRow(
+                        icon = Icons.Default.WbSunny,
+                        label = "Luminosity",
+                        subLabel = "Ambient light sensor",
+                        checked = lightEnabled,
+                        onCheckedChange = onLightToggle
+                    )
+                }
 
-            SectionTitle("Notifications")
-            SettingsList {
-                SettingRow(
-                    icon = Icons.Default.Notifications,
-                    label = "Push alerts",
-                    subLabel = "On every event",
-                    checked = pushAlerts,
-                    onCheckedChange = onPushAlertsToggle
-                )
-                SettingRow(
-                    icon = Icons.Default.Photo,
-                    label = "Save photos",
-                    subLabel = "On motion trigger",
-                    checked = savePhotos,
-                    onCheckedChange = onSavePhotosToggle
-                )
-            }
+                SectionTitle("Sensitivity")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BackgroundSecondary, RoundedCornerShape(12.dp))
+                        .border(0.5.dp, BorderTertiary, RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    SliderWrap(
+                        label = "Motion threshold",
+                        value = motionSensitivity,
+                        onValueChange = onMotionSensitivityChange,
+                        displayValue = if (motionSensitivity < 0.3f) "Low" else if (motionSensitivity < 0.7f) "Medium" else "High",
+                        color = NeruppuOrange
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    SliderWrap(
+                        label = "Sound threshold",
+                        value = soundThreshold,
+                        onValueChange = onSoundThresholdChange,
+                        displayValue = "${(soundThreshold * 100).toInt()} dB",
+                        color = NeruppuBlue
+                    )
+                }
 
-            SectionTitle("Log deletion")
-            DeletePasswordManagementRow(
-                hasPassword = deletePasswordUiState.hasPassword,
-                onSetClick = { showSetupPasswordDialog = true },
-                onChangeClick = { showChangePasswordDialog = true },
-                onRemoveClick = { showRemovePasswordDialog = true }
-            )
+                SectionTitle("Notifications")
+                SettingsList {
+                    SettingRow(
+                        icon = Icons.Default.Notifications,
+                        label = "Push alerts",
+                        subLabel = "On every event",
+                        checked = pushAlerts,
+                        onCheckedChange = onPushAlertsToggle
+                    )
+                    SettingRow(
+                        icon = Icons.Default.Photo,
+                        label = "Save photos",
+                        subLabel = "On motion trigger",
+                        checked = savePhotos,
+                        onCheckedChange = onSavePhotosToggle
+                    )
+                }
 
-            SectionTitle("Integrations")
-            SettingsList {
-                IntegrationSettingRow(
-                    icon = Icons.Default.Send,
-                    label = "Telegram Alerts",
-                    isConfigured = telegramUiState.isSaved,
-                    onClick = { showTelegramConfig = true }
+                SectionTitle("Log deletion")
+                DeletePasswordManagementRow(
+                    hasPassword = deletePasswordUiState.hasPassword,
+                    onSetClick = { showSetupPasswordDialog = true },
+                    onChangeClick = { showChangePasswordDialog = true },
+                    onRemoveClick = { showRemovePasswordDialog = true }
                 )
-                IntegrationSettingRow(
-                    icon = Icons.Default.Message,
-                    label = "Matrix Alerts",
-                    isConfigured = matrixUiState.isSaved,
-                    onClick = { showMatrixConfig = true }
-                )
+
+                SectionTitle("Integrations")
+                SettingsList {
+                    IntegrationSettingRow(
+                        icon = Icons.Default.Send,
+                        label = "Telegram Alerts",
+                        isConfigured = telegramUiState.isSaved,
+                        onClick = { showTelegramConfig = true }
+                    )
+                    IntegrationSettingRow(
+                        icon = Icons.Default.Message,
+                        label = "Matrix Alerts",
+                        isConfigured = matrixUiState.isSaved,
+                        onClick = { showMatrixConfig = true }
+                    )
+                }
             }
         }
     }

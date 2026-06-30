@@ -39,6 +39,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -90,123 +91,128 @@ fun LogsScreen(
     LaunchedEffect(deleteState.deleteMessage) {
         val message = deleteState.deleteMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(
-            when (message) {
+            message = when (message) {
                 LogsDeleteMessage.Success -> "Events and media cleared"
                 is LogsDeleteMessage.Error -> message.text
-            }
+            },
+            duration = SnackbarDuration.Short
         )
         viewModel.clearDeleteMessage()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundPrimary)
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = BackgroundPrimary,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) {
-        SnackbarHost(hostState = snackbarHostState)
-
-        ScreenHeader(title = "Events") {
-            IconButton(onClick = { showDeleteDialog = true }) {
-                Icon(
-                    Icons.Default.DeleteSweep,
-                    contentDescription = "Clear all",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        if (showDeleteDialog) {
-            DeleteConfirmationDialog(
-                onConfirm = {
-                    onRequestDelete()
-                    showDeleteDialog = false
-                },
-                onDismiss = { showDeleteDialog = false }
-            )
-        }
-
-        if (deleteState.showPasswordDialog) {
-            DeletePasswordDialog(
-                password = password,
-                onPasswordChange = { password = it },
-                onConfirm = {
-                    viewModel.clearLogs(password)
-                    password = ""
-                },
-                onDismiss = {
-                    viewModel.hidePasswordDialog()
-                    password = ""
-                },
-                isLoading = deleteState.isDeleting
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EventTag("All", active = selectedFilter == "All", onClick = { viewModel.setFilter("All") })
-            EventTag("Motion", active = selectedFilter == "Motion", onClick = { viewModel.setFilter("Motion") })
-            EventTag("Sound", active = selectedFilter == "Sound", onClick = { viewModel.setFilter("Sound") })
-            EventTag("Light", active = selectedFilter == "Light", onClick = { viewModel.setFilter("Light") })
-        }
-
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
+                .padding(bottom = 4.dp)
         ) {
-            items(pagingItems.itemCount) { index ->
-                pagingItems[index]?.let { event ->
-                    EventItem(event)
+            ScreenHeader(title = "Events") {
+                IconButton(onClick = { showDeleteDialog = true }) {
+                    Icon(
+                        Icons.Default.DeleteSweep,
+                        contentDescription = "Clear all",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 
-            pagingItems.apply {
-                if (loadState.refresh is LoadState.Loading) {
-                    item {
-                        Box(Modifier.fillParentMaxSize(), Alignment.Center) {
-                            CircularProgressIndicator(color = NeruppuOrange)
-                        }
+            if (showDeleteDialog) {
+                DeleteConfirmationDialog(
+                    onConfirm = {
+                        onRequestDelete()
+                        showDeleteDialog = false
+                    },
+                    onDismiss = { showDeleteDialog = false }
+                )
+            }
+
+            if (deleteState.showPasswordDialog) {
+                DeletePasswordDialog(
+                    password = password,
+                    onPasswordChange = { password = it },
+                    onConfirm = {
+                        viewModel.clearLogs(password)
+                        password = ""
+                    },
+                    onDismiss = {
+                        viewModel.hidePasswordDialog()
+                        password = ""
+                    },
+                    isLoading = deleteState.isDeleting
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                EventTag("All", active = selectedFilter == "All", onClick = { viewModel.setFilter("All") })
+                EventTag("Motion", active = selectedFilter == "Motion", onClick = { viewModel.setFilter("Motion") })
+                EventTag("Sound", active = selectedFilter == "Sound", onClick = { viewModel.setFilter("Sound") })
+                EventTag("Light", active = selectedFilter == "Light", onClick = { viewModel.setFilter("Light") })
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(pagingItems.itemCount) { index ->
+                    pagingItems[index]?.let { event ->
+                        EventItem(event)
                     }
-                } else if (itemCount == 0) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillParentMaxSize()
-                                .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.neruppu_brand_logo),
-                                contentDescription = null,
-                                tint = BorderTertiary,
-                                modifier = Modifier.size(100.dp)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                "No events recorded",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "When sensors are triggered during monitoring, events will be listed here.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                lineHeight = 20.sp
-                            )
+                }
+
+                pagingItems.apply {
+                    if (loadState.refresh is LoadState.Loading) {
+                        item {
+                            Box(Modifier.fillParentMaxSize(), Alignment.Center) {
+                                CircularProgressIndicator(color = NeruppuOrange)
+                            }
+                        }
+                    } else if (itemCount == 0) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillParentMaxSize()
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.neruppu_brand_logo),
+                                    contentDescription = null,
+                                    tint = BorderTertiary,
+                                    modifier = Modifier.size(100.dp)
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text(
+                                    "No events recorded",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "When sensors are triggered during monitoring, events will be listed here.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    lineHeight = 20.sp
+                                )
+                            }
                         }
                     }
                 }

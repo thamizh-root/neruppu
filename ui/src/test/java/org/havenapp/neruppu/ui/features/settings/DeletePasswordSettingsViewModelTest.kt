@@ -10,8 +10,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.havenapp.neruppu.domain.usecase.DeletePasswordResult
-import org.havenapp.neruppu.domain.usecase.DeletePasswordUseCase
+import org.havenapp.neruppu.domain.repository.DeletePasswordRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,14 +22,15 @@ import org.junit.Test
 class DeletePasswordSettingsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
-    private val deletePasswordUseCase = mockk<DeletePasswordUseCase>(relaxed = true)
+    private val deletePasswordRepository = mockk<DeletePasswordRepository>(relaxed = true)
 
     private lateinit var viewModel: DeletePasswordSettingsViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = DeletePasswordSettingsViewModel(deletePasswordUseCase)
+        every { deletePasswordRepository.hasPassword() } returns false
+        viewModel = DeletePasswordSettingsViewModel(deletePasswordRepository)
     }
 
     @After
@@ -40,55 +40,52 @@ class DeletePasswordSettingsViewModelTest {
 
     @Test
     fun `TC-SET-01 setup password success updates state`() = runTest(testDispatcher) {
-        every { deletePasswordUseCase.setPassword("new", "new") } returns DeletePasswordResult.Success
-        every { deletePasswordUseCase.hasPassword() } returns true
+        every { deletePasswordRepository.setPassword(any()) } returns Unit
 
-        viewModel.onSetupPassword("new", "new")
+        viewModel.setPassword("new", "new") {}
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.hasPassword)
-        assertTrue(viewModel.uiState.value.message is DeletePasswordMessage.Success)
-        verify { deletePasswordUseCase.setPassword("new", "new") }
+        assertEquals("Delete password set", viewModel.uiState.value.successMessage)
+        verify { deletePasswordRepository.setPassword("new") }
     }
 
     @Test
     fun `TC-SET-02 setup password error updates message`() = runTest(testDispatcher) {
-        every { deletePasswordUseCase.setPassword("new", "different") } returns DeletePasswordResult.Error("Passwords do not match.")
-        every { deletePasswordUseCase.hasPassword() } returns false
-
-        viewModel.onSetupPassword("new", "different")
+        viewModel.setPassword("new", "different") {}
         advanceUntilIdle()
 
-        assertTrue(viewModel.uiState.value.message is DeletePasswordMessage.Error)
-        assertEquals(
-            "Passwords do not match.",
-            (viewModel.uiState.value.message as DeletePasswordMessage.Error).text
-        )
+        assertFalse(viewModel.uiState.value.hasPassword)
+        assertTrue(viewModel.uiState.value.errorMessage?.contains("Passwords do not match") == true)
     }
 
     @Test
     fun `TC-SET-03 change password success updates state`() = runTest(testDispatcher) {
-        every { deletePasswordUseCase.changePassword("old", "new", "new") } returns DeletePasswordResult.Success
-        every { deletePasswordUseCase.hasPassword() } returns true
+        every { deletePasswordRepository.hasPassword() } returns true
+        every { deletePasswordRepository.verifyPassword("old") } returns true
+        every { deletePasswordRepository.setPassword(any()) } returns Unit
 
-        viewModel.onChangePassword("old", "new", "new")
+        viewModel = DeletePasswordSettingsViewModel(deletePasswordRepository)
+        viewModel.changePassword("old", "new", "new") {}
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.hasPassword)
-        assertTrue(viewModel.uiState.value.message is DeletePasswordMessage.Success)
-        verify { deletePasswordUseCase.changePassword("old", "new", "new") }
+        assertEquals("Password changed", viewModel.uiState.value.successMessage)
+        verify { deletePasswordRepository.setPassword("new") }
     }
 
     @Test
     fun `TC-SET-04 remove password success clears password state`() = runTest(testDispatcher) {
-        every { deletePasswordUseCase.removePassword("old") } returns DeletePasswordResult.Success
-        every { deletePasswordUseCase.hasPassword() } returns false
+        every { deletePasswordRepository.hasPassword() } returns true
+        every { deletePasswordRepository.verifyPassword("old") } returns true
+        every { deletePasswordRepository.removePassword(any()) } returns true
 
-        viewModel.onRemovePassword("old")
+        viewModel = DeletePasswordSettingsViewModel(deletePasswordRepository)
+        viewModel.removePassword("old") {}
         advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.hasPassword)
-        assertTrue(viewModel.uiState.value.message is DeletePasswordMessage.Success)
-        verify { deletePasswordUseCase.removePassword("old") }
+        assertEquals("Delete password removed", viewModel.uiState.value.successMessage)
+        verify { deletePasswordRepository.removePassword("old") }
     }
 }
