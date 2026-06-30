@@ -1,0 +1,7 @@
+v2026.06.30 - Production release
+• Camera motion detection with CameraX
+• Microphone audio monitoring with automatic recording
+• Accelerometer movement detection
+• Ambient light change detection
+• Matrix remote alert integration
+• Foreground service for continuous monitoring

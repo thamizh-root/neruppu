@@ -35,4 +35,6 @@ Thumbs.db
 
 # Keystores & Secrets
 *.jks
+*.keystore
 keystore_base64.txt
+.local.properties

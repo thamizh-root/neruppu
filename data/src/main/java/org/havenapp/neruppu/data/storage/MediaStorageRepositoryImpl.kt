@@ -1,6 +1,8 @@
 package org.havenapp.neruppu.data.storage
 
 import android.content.Context
+import android.util.Log
+import org.havenapp.neruppu.data.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,7 +26,7 @@ class MediaStorageRepositoryImpl @Inject constructor(
             val capturesDir = File(context.filesDir, "captures").apply { mkdirs() }
             val file = File(capturesDir, fileName)
             file.writeBytes(jpegBytes)
-            
+
             MediaFile(
                 absolutePath = file.absolutePath,
                 mimeType = "image/jpeg",
@@ -43,7 +45,7 @@ class MediaStorageRepositoryImpl @Inject constructor(
             val capturesDir = File(context.filesDir, "captures").apply { mkdirs() }
             val file = File(capturesDir, fileName)
             audioFile.copyTo(file, overwrite = true)
-            
+
             MediaFile(
                 absolutePath = file.absolutePath,
                 mimeType = "audio/mp4",

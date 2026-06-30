@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import org.havenapp.neruppu.data.BuildConfig
 import org.havenapp.neruppu.data.local.dao.EventDao
 import org.havenapp.neruppu.data.local.entity.toDomain
 import org.havenapp.neruppu.data.local.entity.toEntity
@@ -37,7 +38,9 @@ class SensorRepositoryImpl(
 
     override suspend fun saveEvent(event: Event): Long {
         val id = eventDao.insertEvent(event.toEntity())
-        Log.d("SensorRepository", "Event saved: ${event.sensorType} with ID $id")
+        if (BuildConfig.DEBUG) {
+            Log.d("SensorRepository", "Event saved: ${event.sensorType} with ID $id")
+        }
         return id
     }
 
@@ -45,9 +48,13 @@ class SensorRepositoryImpl(
         val entity = eventDao.getEventById(eventId)
         if (entity != null) {
             eventDao.updateEvent(entity.copy(audioUri = audioUri))
-            Log.d("SensorRepository", "Audio attached to event $eventId: $audioUri")
+            if (BuildConfig.DEBUG) {
+                Log.d("SensorRepository", "Audio attached to event $eventId: $audioUri")
+            }
         } else {
-            Log.e("SensorRepository", "Failed to attach audio: Event $eventId not found!")
+            if (BuildConfig.DEBUG) {
+                Log.e("SensorRepository", "Failed to attach audio: Event $eventId not found!")
+            }
         }
     }
 
@@ -64,9 +71,13 @@ class SensorRepositoryImpl(
                 uploadedAt = uploadedAt,
                 failureReason = failureReason
             ))
-            Log.d("SensorRepository", "Upload status updated for event $eventId: $status")
+            if (BuildConfig.DEBUG) {
+                Log.d("SensorRepository", "Upload status updated for event $eventId: $status")
+            }
         } else {
-            Log.e("SensorRepository", "Failed to update upload status: Event $eventId not found!")
+            if (BuildConfig.DEBUG) {
+                Log.e("SensorRepository", "Failed to update upload status: Event $eventId not found!")
+            }
         }
     }
 
@@ -105,7 +116,7 @@ class SensorRepositoryImpl(
                 path?.let { File(it).delete() }
             }
         } catch (e: Exception) {
-            // Log or ignore deletion errors to ensure db clearing continues
+            // Ignore deletion errors to ensure db clearing continues
         }
     }
 }

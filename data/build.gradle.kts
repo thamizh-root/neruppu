@@ -2,8 +2,8 @@ plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.hiltAndroid)
+    alias(libs.plugins.kotlinSerialization)
     id("kotlin-kapt")
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
 }
 
 android {
@@ -26,10 +26,6 @@ android {
             )
         }
     }
-    dexOptions {
-        javaMaxHeapSize = "4g"
-        dexInProcess = true
-    }
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -42,6 +38,9 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+    buildFeatures {
+        buildConfig = true
     }
 }
 
