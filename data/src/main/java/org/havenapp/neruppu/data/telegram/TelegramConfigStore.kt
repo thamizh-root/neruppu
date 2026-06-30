@@ -5,13 +5,15 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import org.havenapp.neruppu.domain.repository.AlertTargetRepository
 import org.havenapp.neruppu.domain.repository.TelegramConfigRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class TelegramConfigStore @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val alertTargetRepository: AlertTargetRepository
 ) : TelegramConfigRepository {
     private val prefs by lazy {
         val masterKey = MasterKey.Builder(context)
@@ -41,7 +43,15 @@ class TelegramConfigStore @Inject constructor(
             return complete
         }
 
-    override fun clear() = prefs.edit().clear().apply()
+    override fun clear() {
+        prefs.edit().clear().apply()
+        alertTargetRepository.clearActiveTarget()
+        Log.d("TelegramConfigStore", "Telegram config cleared, target reset to NONE")
+    }
+
+    fun setAsActiveTarget() {
+        alertTargetRepository.setActiveTarget(org.havenapp.neruppu.domain.model.AlertTarget.TELEGRAM)
+    }
 
     companion object {
         private const val KEY_BOT_TOKEN = "bot_token"

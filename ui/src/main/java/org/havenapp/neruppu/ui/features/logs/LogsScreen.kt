@@ -18,7 +18,31 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgeDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +52,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,117 +67,152 @@ import kotlinx.coroutines.flow.flowOf
 import org.havenapp.neruppu.core.ui.theme.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
+import org.havenapp.neruppu.domain.model.UploadStatus
 import org.havenapp.neruppu.ui.R
 import org.havenapp.neruppu.ui.components.ScreenHeader
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogsScreen(
     viewModel: LogsViewModel,
-    onClearLogs: (Boolean) -> Unit
+    onRequestDelete: () -> Unit
 ) {
     val pagingItems = viewModel.events.collectAsLazyPagingItems()
     val selectedFilter by viewModel.filter.collectAsState()
+    val deleteState by viewModel.deleteState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundPrimary)
+    LaunchedEffect(deleteState.deleteMessage) {
+        val message = deleteState.deleteMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(
+            message = when (message) {
+                LogsDeleteMessage.Success -> "Events and media cleared"
+                is LogsDeleteMessage.Error -> message.text
+            },
+            duration = SnackbarDuration.Short
+        )
+        viewModel.clearDeleteMessage()
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = BackgroundPrimary,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) {
-        // Header
-        ScreenHeader(title = "Events") {
-            IconButton(onClick = { showDeleteDialog = true }) {
-                Icon(
-                    Icons.Default.DeleteSweep, 
-                    contentDescription = "Clear all", 
-                    tint = TextSecondary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        if (showDeleteDialog) {
-            DeleteConfirmationDialog(
-                onConfirm = { deleteFiles ->
-                    onClearLogs(deleteFiles)
-                    showDeleteDialog = false
-                },
-                onDismiss = { showDeleteDialog = false }
-            )
-        }
-
-        // Filter Chips
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EventTag("All", active = selectedFilter == "All", onClick = { viewModel.setFilter("All") })
-            EventTag("Motion", active = selectedFilter == "Motion", onClick = { viewModel.setFilter("Motion") })
-            EventTag("Sound", active = selectedFilter == "Sound", onClick = { viewModel.setFilter("Sound") })
-            EventTag("Light", active = selectedFilter == "Light", onClick = { viewModel.setFilter("Light") })
-        }
-
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
+                .padding(bottom = 4.dp)
         ) {
-            items(pagingItems.itemCount) { index ->
-                pagingItems[index]?.let { event ->
-                    EventItem(event)
+            ScreenHeader(title = "Events") {
+                IconButton(onClick = { showDeleteDialog = true }) {
+                    Icon(
+                        Icons.Default.DeleteSweep,
+                        contentDescription = "Clear all",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 
-            pagingItems.apply {
-                if (loadState.refresh is LoadState.Loading) {
-                    item {
-                        Box(Modifier.fillParentMaxSize(), Alignment.Center) {
-                            CircularProgressIndicator(color = NeruppuOrange)
-                        }
+            if (showDeleteDialog) {
+                DeleteConfirmationDialog(
+                    onConfirm = {
+                        onRequestDelete()
+                        showDeleteDialog = false
+                    },
+                    onDismiss = { showDeleteDialog = false }
+                )
+            }
+
+            if (deleteState.showPasswordDialog) {
+                DeletePasswordDialog(
+                    password = password,
+                    onPasswordChange = { password = it },
+                    onConfirm = {
+                        viewModel.clearLogs(password)
+                        password = ""
+                    },
+                    onDismiss = {
+                        viewModel.hidePasswordDialog()
+                        password = ""
+                    },
+                    isLoading = deleteState.isDeleting
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                EventTag("All", active = selectedFilter == "All", onClick = { viewModel.setFilter("All") })
+                EventTag("Motion", active = selectedFilter == "Motion", onClick = { viewModel.setFilter("Motion") })
+                EventTag("Sound", active = selectedFilter == "Sound", onClick = { viewModel.setFilter("Sound") })
+                EventTag("Light", active = selectedFilter == "Light", onClick = { viewModel.setFilter("Light") })
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(pagingItems.itemCount) { index ->
+                    pagingItems[index]?.let { event ->
+                        EventItem(event)
                     }
-                } else if (itemCount == 0) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillParentMaxSize()
-                                .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.neruppu_brand_logo),
-                                contentDescription = null,
-                                tint = BorderTertiary,
-                                modifier = Modifier.size(100.dp)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                "No events recorded",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "When sensors are triggered during monitoring, events will be listed here.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                lineHeight = 20.sp
-                            )
+                }
+
+                pagingItems.apply {
+                    if (loadState.refresh is LoadState.Loading) {
+                        item {
+                            Box(Modifier.fillParentMaxSize(), Alignment.Center) {
+                                CircularProgressIndicator(color = NeruppuOrange)
+                            }
+                        }
+                    } else if (itemCount == 0) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillParentMaxSize()
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.neruppu_brand_logo),
+                                    contentDescription = null,
+                                    tint = BorderTertiary,
+                                    modifier = Modifier.size(100.dp)
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text(
+                                    "No events recorded",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "When sensors are triggered during monitoring, events will be listed here.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    lineHeight = 20.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -209,7 +269,6 @@ fun EventItem(event: Event) {
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon container
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -223,9 +282,9 @@ fun EventItem(event: Event) {
                     modifier = Modifier.size(20.dp)
                 )
             }
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = when(event.sensorType) {
@@ -238,7 +297,7 @@ fun EventItem(event: Event) {
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = timeFormatter.format(event.timestamp),
@@ -251,9 +310,32 @@ fun EventItem(event: Event) {
                     } else if (event.audioUri != null) {
                         Badge("🎙 Audio", NeruppuBlueSoft, NeruppuBlue)
                     }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    when (event.uploadStatus) {
+                        UploadStatus.PENDING -> Badge("⏳ Pending upload", NeruppuAmberSoft, NeruppuAmber)
+                        UploadStatus.UPLOADED -> {
+                            val targetName = when (event.uploadTarget) {
+                                "TELEGRAM" -> "📤 Uploaded to Telegram"
+                                "MATRIX" -> "📤 Uploaded to Matrix"
+                                else -> "📤 Uploaded"
+                            }
+                            val targetBg = when (event.uploadTarget) {
+                                "TELEGRAM" -> NeruppuGreenSoft
+                                "MATRIX" -> NeruppuBlueSoft
+                                else -> NeruppuGreenSoft
+                            }
+                            val targetColor = when (event.uploadTarget) {
+                                "TELEGRAM" -> NeruppuGreen
+                                "MATRIX" -> NeruppuBlue
+                                else -> NeruppuGreen
+                            }
+                            Badge(targetName, targetBg, targetColor)
+                        }
+                        UploadStatus.FAILED -> Badge("⚠ Upload failed", NeruppuRedSoft, NeruppuRed)
+                    }
                 }
             }
-            
+
             IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(24.dp)) {
                 Icon(
                     if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -264,45 +346,47 @@ fun EventItem(event: Event) {
             }
         }
 
-        // Expanded Content
         if (expanded) {
-            Column(
-                modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    .padding(top = 4.dp)
-            ) {
-                if (event.mediaUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(event.mediaUri),
-                        contentDescription = "Event Photo",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black),
-                        contentScale = ContentScale.Fit
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
+            val mediaExists = event.mediaUri?.let { File(Uri.parse(it).path ?: "").exists() } ?: false
+            val audioExists = event.audioUri?.let { File(Uri.parse(it).path ?: "").exists() } ?: false
 
-                if (event.audioUri != null) {
-                    AudioPlayer(uriString = event.audioUri!!)
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-                
-                if (event.sensorType == SensorType.MICROPHONE) {
-                    Waveform(color = NeruppuBlue)
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                
-                val detailMeta = when(event.sensorType) {
-                    SensorType.CAMERA_MOTION -> "High confidence motion detected via CameraX analysis."
-                    SensorType.MICROPHONE -> "Sound level exceeded threshold."
-                    SensorType.LIGHT -> "Ambient light shifted significantly."
-                    else -> "Sensor trigger event."
-                }
-                Text(detailMeta, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+            if (mediaExists && event.mediaUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(event.mediaUri),
+                    contentDescription = "Event Photo",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else if (event.uploadStatus == UploadStatus.UPLOADED && !mediaExists) {
+                DeletedMediaPlaceholder("Image uploaded and deleted locally")
+                Spacer(modifier = Modifier.height(12.dp))
             }
+
+            if (audioExists && event.audioUri != null) {
+                AudioPlayer(uriString = event.audioUri!!)
+                Spacer(modifier = Modifier.height(12.dp))
+            } else if (event.uploadStatus == UploadStatus.UPLOADED && !audioExists) {
+                DeletedMediaPlaceholder("Audio uploaded and deleted locally")
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            if (event.sensorType == SensorType.MICROPHONE) {
+                Waveform(color = NeruppuBlue)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            val detailMeta = when(event.sensorType) {
+                SensorType.CAMERA_MOTION -> "High confidence motion detected via CameraX analysis."
+                SensorType.MICROPHONE -> "Sound level exceeded threshold."
+                SensorType.LIGHT -> "Ambient light shifted significantly."
+                else -> "Sensor trigger event."
+            }
+            Text(detailMeta, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -457,16 +541,14 @@ fun formatTime(ms: Int): String {
 
 @Composable
 fun DeleteConfirmationDialog(
-    onConfirm: (Boolean) -> Unit,
+    onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var deleteFiles by remember { mutableStateOf(false) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Clear all events?",
+                "Clear all events and media?",
                 style = MaterialTheme.typography.headlineSmall,
                 color = TextPrimary
             )
@@ -474,39 +556,24 @@ fun DeleteConfirmationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "This will remove all recorded security events from your log history.",
+                    "This will permanently remove all recorded security events and their media files from this device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { deleteFiles = !deleteFiles }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Checkbox(
-                        checked = deleteFiles,
-                        onCheckedChange = { deleteFiles = it },
-                        colors = CheckboxDefaults.colors(checkedColor = NeruppuOrange)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Also delete media files from device storage",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextPrimary
-                    )
-                }
+                Text(
+                    "A configured delete password must be verified before anything is removed.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(deleteFiles) },
+                onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(containerColor = NeruppuRed),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Clear All", fontWeight = FontWeight.Bold)
+                Text("Continue", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -519,12 +586,85 @@ fun DeleteConfirmationDialog(
     )
 }
 
+@Composable
+fun DeletePasswordDialog(
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    isLoading: Boolean
+) {
+    AlertDialog(
+        onDismissRequest = if (isLoading) { {} } else onDismiss,
+        title = {
+            Text(
+                "Verify delete password",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Enter the delete password to remove all events and media files.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Delete password", color = TextSecondary) },
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = NeruppuOrange,
+                        focusedBorderColor = NeruppuOrange,
+                        unfocusedBorderColor = BorderTertiary,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = password.isNotBlank() && !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = NeruppuOrange),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text("Clear All", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
+                Text("Cancel", color = TextSecondary)
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 fun LogsScreenPreview() {
-    // Note: This preview will not be functional as it doesn't have a real ViewModel
-    // but we can fix the compilation by not calling LogsScreen here if needed,
-    // or providing a mock/stub. For now, let's just comment it out to unblock build.
 }
 
 @Preview(showBackground = true)
@@ -537,6 +677,30 @@ fun LogsScreenEmptyPreview() {
 fun DeleteConfirmationDialogPreview() {
     NeruppuTheme {
         DeleteConfirmationDialog(onConfirm = {}, onDismiss = {})
+    }
+}
+
+@Composable
+fun DeletedMediaPlaceholder(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.CloudDone,
+            contentDescription = null,
+            tint = TextSecondary,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            color = TextSecondary,
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 

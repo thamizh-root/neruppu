@@ -5,13 +5,15 @@ import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import org.havenapp.neruppu.domain.repository.AlertTargetRepository
 import org.havenapp.neruppu.domain.repository.MatrixConfigRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class MatrixConfigStore @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val alertTargetRepository: AlertTargetRepository
 ) : MatrixConfigRepository {
     private val prefs by lazy {
         runCatching {
@@ -46,7 +48,15 @@ class MatrixConfigStore @Inject constructor(
     override val isComplete: Boolean
         get() = homeserverUrl.isNotBlank() && roomId.isNotBlank() && accessToken.isNotBlank()
 
-    override fun clear() = prefs.edit().clear().apply()
+    override fun clear() {
+        prefs.edit().clear().apply()
+        alertTargetRepository.clearActiveTarget()
+        Log.d("MatrixConfigStore", "Matrix config cleared, target reset to NONE")
+    }
+
+    fun setAsActiveTarget() {
+        alertTargetRepository.setActiveTarget(org.havenapp.neruppu.domain.model.AlertTarget.MATRIX)
+    }
 
     companion object {
         private const val KEY_HOMESERVER = "homeserver_url"

@@ -38,4 +38,14 @@ interface EventDao {
 
     @Query("DELETE FROM events")
     suspend fun clearEvents()
+
+    @Query("SELECT * FROM events WHERE uploadStatusValue IN (1, 3) ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun getPendingUploadEvents(limit: Int): List<EventEntity>
+
+    @Query("SELECT * FROM events ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastEventEntity(): EventEntity?
+
+    suspend fun getLastEventTimestamp(): Long? {
+        return getLastEventEntity()?.timestamp?.toEpochMilli()
+    }
 }

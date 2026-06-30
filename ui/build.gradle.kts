@@ -79,4 +79,11 @@ dependencies {
     implementation(libs.androidx.paging.compose)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.ui.test.manifest)
+    testImplementation(libs.androidx.ui.test.junit4)
+    testImplementation(libs.androidx.junit)
+    testImplementation(libs.robolectric)
 }

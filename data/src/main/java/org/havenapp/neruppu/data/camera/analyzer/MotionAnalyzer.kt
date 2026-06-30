@@ -26,7 +26,7 @@ class ContextBatteryLevelProvider(private val context: Context) : BatteryLevelPr
         return if (level == -1 || scale == -1) {
             100   // assume full battery if we can't read
         } else {
-            (level * 100 / scale)
+            (level!! * 100 / scale!!)
         }
     }
 }

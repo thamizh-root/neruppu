@@ -10,24 +10,29 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.havenapp.neruppu.domain.di.TelegramTransport
 import org.havenapp.neruppu.domain.repository.TelegramConfigRepository
+import org.havenapp.neruppu.domain.repository.MatrixConfigRepository
+import org.havenapp.neruppu.domain.repository.AlertTargetRepository
 import org.havenapp.neruppu.domain.transport.AlertTransport
 import org.havenapp.neruppu.domain.model.AlertPayload
 import org.havenapp.neruppu.domain.model.SensorType
+import org.havenapp.neruppu.domain.model.AlertTarget
 import javax.inject.Inject
 
 data class TelegramUiState(
     val botToken: String = "",
     val chatId: String = "",
-    val isSaved: Boolean = false,
-    val isLoading: Boolean = false,
-    val testStatus: TestStatus? = null
-)
+    override val isSaved: Boolean = false,
+    override val isLoading: Boolean = false,
+    override val testStatus: TestStatus? = null
+) : IntegrationConfigUiState
 
 @HiltViewModel
 class TelegramSettingsViewModel @Inject constructor(
     private val configRepository: TelegramConfigRepository,
+    private val matrixConfigRepository: MatrixConfigRepository,
+    private val alertTargetRepository: AlertTargetRepository,
     @TelegramTransport private val alertTransport: AlertTransport
-) : ViewModel() {
+) : ViewModel(), IntegrationConfigActions {
 
     private val _uiState = MutableStateFlow(
         TelegramUiState(
@@ -46,17 +51,21 @@ class TelegramSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(chatId = value) }
     }
 
-    fun saveConfig() {
+    override fun saveConfig() {
         configRepository.botToken = _uiState.value.botToken
         configRepository.chatId = _uiState.value.chatId
         _uiState.update { it.copy(isSaved = configRepository.isComplete) }
+        if (configRepository.isComplete) {
+            matrixConfigRepository.clear()
+            alertTargetRepository.setActiveTarget(AlertTarget.TELEGRAM)
+        }
     }
 
-    fun testConnection() {
+    override fun testConnection() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val result = alertTransport.testConnection()
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     isLoading = false,
                     testStatus = TestStatus(
@@ -68,7 +77,7 @@ class TelegramSettingsViewModel @Inject constructor(
         }
     }
 
-    fun sendMockMessage() {
+    override fun sendMockMessage() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, testStatus = null) }
             val payload = AlertPayload.TextAlert(

@@ -1,0 +1,18 @@
+<resources>
+    <string name="dashboard_live_sensors">LIVE SENSORS</string>
+    <string name="dashboard_stop_monitoring">Stop monitoring</string>
+    <string name="dashboard_start_guarding">Start guarding</string>
+    <string name="dashboard_brand_neru">neru</string>
+    <string name="dashboard_brand_ppu">ppu</string>
+    <string name="dashboard_device_is">Device is</string>
+    <string name="dashboard_guarding">Guarding</string>
+    <string name="dashboard_idle">Idle</string>
+    <string name="dashboard_all_sensors_live">All sensors live</string>
+    <string name="dashboard_monitoring_off">Monitoring off</string>
+    <string name="dashboard_never_guarded">Never guarded</string>
+    <string name="dashboard_last_guarded">Last guarded %1$d h %2$d m ago</string>
+    <string name="dashboard_last_guarded_minutes">Last guarded %1$d m ago</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_events">Events</string>
+    <string name="nav_settings">Settings</string>
+</resources>

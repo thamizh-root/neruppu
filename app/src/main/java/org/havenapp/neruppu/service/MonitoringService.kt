@@ -33,6 +33,9 @@ import org.havenapp.neruppu.data.sensors.*
 import org.havenapp.neruppu.domain.model.Event
 import org.havenapp.neruppu.domain.model.SensorType
 import org.havenapp.neruppu.domain.model.SensorEvent
+import org.havenapp.neruppu.domain.model.AlertTarget
+import org.havenapp.neruppu.domain.repository.AlertTargetRepository
+import org.havenapp.neruppu.domain.repository.MediaUploadRepository
 import org.havenapp.neruppu.domain.repository.SensorRepository
 import org.havenapp.neruppu.domain.usecase.HandleSensorEventUseCase
 import org.havenapp.neruppu.domain.usecase.AttachAudioToEventUseCase
@@ -53,6 +56,12 @@ class MonitoringService : LifecycleService() {
 
     @Inject
     lateinit var attachAudioToEventUseCase: AttachAudioToEventUseCase
+
+    @Inject
+    lateinit var alertTargetRepository: AlertTargetRepository
+
+    @Inject
+    lateinit var mediaUploadRepository: MediaUploadRepository
 
     @Inject
     lateinit var cameraManager: CameraManager
@@ -80,6 +89,12 @@ class MonitoringService : LifecycleService() {
 
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring
+
+    private val _sessionStartTime = MutableStateFlow(0L)
+    val sessionStartTime: StateFlow<Long> = _sessionStartTime
+
+    private val _lastGuardedTime = MutableStateFlow(0L)
+    val lastGuardedTime: StateFlow<Long> = _lastGuardedTime
 
     private val notificationManager by lazy {
         getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -155,8 +170,11 @@ class MonitoringService : LifecycleService() {
         audioRecorder = AudioRecorder(this)
         
         updatePrefValues()
-        getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-            .registerOnSharedPreferenceChangeListener(prefsListener)
+        val prefs = getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+
+        _sessionStartTime.value = prefs.getLong("session_start_time", 0L)
+        _lastGuardedTime.value = prefs.getLong("last_guarded_time", 0L)
 
         startHeartbeat()
         // Sensors will be started based on isMonitoring or UI visibility
@@ -285,17 +303,27 @@ class MonitoringService : LifecycleService() {
     }
 
     fun toggleMonitoring() {
+        val now = System.currentTimeMillis()
         _isMonitoring.value = !_isMonitoring.value
         if (_isMonitoring.value) {
             Log.d("MonitoringService", "Monitoring ACTIVATED")
+            _sessionStartTime.value = now
+            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                .edit()
+                .putLong("session_start_time", now)
+                .remove("last_guarded_time")
+                .apply()
             startWakeLockIfNeeded()
-            // Ensure service is running as foreground when monitoring is ON
             updateNotification()
         } else {
             Log.d("MonitoringService", "Monitoring DEACTIVATED")
+            _lastGuardedTime.value = now
+            getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
+                .edit()
+                .remove("session_start_time")
+                .putLong("last_guarded_time", now)
+                .apply()
             stopWakeLockIfNeeded()
-            // When monitoring is OFF, we might still be in foreground if UI is active
-            // but updateNotification will handle the startForeground/stopForeground logic
             updateNotification()
         }
         startMonitoringIfNeeded()
@@ -489,7 +517,10 @@ class MonitoringService : LifecycleService() {
                 if (uri != null && audioFile != null && eventId != -1L) {
                     Log.i("MonitoringService", "AUDIO CLIP CAPTURED: $uri. Attaching to event $eventId in background...")
                     serviceScope.launch {
-                        attachAudioToEventUseCase.execute(eventId, audioFile!!, System.currentTimeMillis())
+                        val attachResult = attachAudioToEventUseCase.execute(eventId, audioFile!!, System.currentTimeMillis())
+                        if (attachResult.isSuccess && alertTargetRepository.activeTarget != AlertTarget.NONE) {
+                            mediaUploadRepository.enqueueUpload(eventId)
+                        }
                     }
                 }
             }
@@ -542,6 +573,16 @@ class MonitoringService : LifecycleService() {
         
         if (result.isFailure) {
             Log.e("MonitoringService", "UseCase failed", result.exceptionOrNull())
+        }
+
+        if (id > 0 && type != SensorType.MICROPHONE && alertTargetRepository.activeTarget != AlertTarget.NONE) {
+            serviceScope.launch {
+                try {
+                    mediaUploadRepository.enqueueUpload(id)
+                } catch (e: Exception) {
+                    Log.w("MonitoringService", "Failed to enqueue media upload for event $id", e)
+                }
+            }
         }
         
         // Schedule deferred notification via WorkManager (Best Practice)
