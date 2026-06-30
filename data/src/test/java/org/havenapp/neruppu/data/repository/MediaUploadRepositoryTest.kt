@@ -119,7 +119,7 @@ class MediaUploadRepositoryTest {
             status = UploadStatus.FAILED,
             target = "TELEGRAM",
             uploadedAt = null,
-            failureReason = "Network error"
+            failureReason = "Image upload failed: Network error"
         ) }
         assertTrue(testFile.exists())
     }
@@ -179,5 +179,41 @@ class MediaUploadRepositoryTest {
             uploadedAt = any(),
             failureReason = null
         ) }
+    }
+
+    @Test
+    fun `TC-MUP-06 Event with both image and audio uploads both media files`() = runBlocking {
+        val imageFile = File(tempFolder.root, "neruppu_motion_123.jpg").apply { createNewFile() }
+        imageFile.writeBytes(byteArrayOf(1, 2, 3))
+        val audioFile = File(tempFolder.root, "neruppu_sound_123.mp4").apply { createNewFile() }
+        audioFile.writeBytes(byteArrayOf(4, 5, 6))
+
+        val event = Event(
+            id = 1L,
+            sensorType = SensorType.MICROPHONE,
+            description = "Sound detected",
+            mediaUri = imageFile.absolutePath,
+            audioUri = audioFile.absolutePath,
+            uploadStatus = UploadStatus.PENDING
+        )
+        every { alertTargetRepository.activeTarget } returns AlertTarget.TELEGRAM
+        coEvery { sensorRepository.getPendingUploadEvents(any()) } returns listOf(event)
+        coEvery { telegramTransport.send(any()) } returns Result.success(Unit)
+        coEvery { sensorRepository.updateEventUploadStatus(any(), any(), any(), any(), any()) } just Runs
+
+        val result = mediaUploadRepository.uploadPendingEvents()
+
+        assertTrue(result)
+        // Verify both files were deleted after successful upload
+        coVerify(exactly = 2) { telegramTransport.send(any()) }
+        coVerify { sensorRepository.updateEventUploadStatus(
+            eventId = 1L,
+            status = UploadStatus.UPLOADED,
+            target = "TELEGRAM",
+            uploadedAt = any(),
+            failureReason = null
+        ) }
+        assertFalse(imageFile.exists())
+        assertFalse(audioFile.exists())
     }
 }

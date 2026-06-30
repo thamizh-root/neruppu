@@ -1,0 +1,13 @@
+Neruppu is a modern, offline-first physical security monitoring app that uses your device's sensors to detect and record security events.
+
+Features:
+• Camera motion detection (front and back cameras)
+• Microphone audio monitoring with automatic recording on noise bursts
+• Accelerometer-based movement/vibration detection
+• Ambient light change detection
+• Optional Matrix remote alerts
+• All data stored locally - no cloud required
+
+The app runs as a foreground service ensuring continuous monitoring while providing optional encrypted remote notifications via Matrix when security events are detected.
+
+Built with privacy and security in mind - all logs and media remain on your device unless you explicitly configure remote alerts.

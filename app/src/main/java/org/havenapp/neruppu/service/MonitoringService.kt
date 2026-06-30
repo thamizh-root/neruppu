@@ -517,8 +517,17 @@ class MonitoringService : LifecycleService() {
                 if (uri != null && audioFile != null && eventId != -1L) {
                     Log.i("MonitoringService", "AUDIO CLIP CAPTURED: $uri. Attaching to event $eventId in background...")
                     serviceScope.launch {
-                        val attachResult = attachAudioToEventUseCase.execute(eventId, audioFile!!, System.currentTimeMillis())
-                        if (attachResult.isSuccess && alertTargetRepository.activeTarget != AlertTarget.NONE) {
+                        // Clean up temp file first - the attach will copy it to captures dir
+                        val tempFile = audioFile
+                        attachAudioToEventUseCase.execute(eventId, tempFile, System.currentTimeMillis())
+                        // Delete temp file after attach (success or failure - it's copied to permanent storage)
+                        try {
+                            tempFile.delete()
+                            Log.d("MonitoringService", "Temp audio file deleted: ${tempFile.absolutePath}")
+                        } catch (e: Exception) {
+                            Log.w("MonitoringService", "Failed to delete temp audio file", e)
+                        }
+                        if (alertTargetRepository.activeTarget != AlertTarget.NONE) {
                             mediaUploadRepository.enqueueUpload(eventId)
                         }
                     }

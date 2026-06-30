@@ -22,10 +22,6 @@ android {
             )
         }
     }
-    dexOptions {
-        javaMaxHeapSize = "4g"
-        dexInProcess = true
-    }
     testOptions {
         unitTests {
             isIncludeAndroidResources = true

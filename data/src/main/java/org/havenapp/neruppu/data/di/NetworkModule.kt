@@ -1,5 +1,6 @@
 package org.havenapp.neruppu.data.di
 
+import org.havenapp.neruppu.data.BuildConfig
 import android.util.Log
 import dagger.Module
 import dagger.Provides
@@ -38,7 +39,7 @@ object NetworkModule {
                         Log.d("HttpClient", message)
                     }
                 }
-                level = LogLevel.ALL
+                level = if (BuildConfig.DEBUG) LogLevel.ALL else LogLevel.NONE
             }
             install(HttpTimeout) {
                 requestTimeoutMillis = 60_000

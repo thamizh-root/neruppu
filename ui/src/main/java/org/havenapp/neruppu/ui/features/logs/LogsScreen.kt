@@ -362,7 +362,7 @@ fun EventItem(event: Event) {
                     contentScale = ContentScale.Fit
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-            } else if (event.uploadStatus == UploadStatus.UPLOADED && !mediaExists) {
+            } else if (event.mediaUri != null && event.uploadStatus == UploadStatus.UPLOADED && !mediaExists) {
                 DeletedMediaPlaceholder("Image uploaded and deleted locally")
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -370,7 +370,7 @@ fun EventItem(event: Event) {
             if (audioExists && event.audioUri != null) {
                 AudioPlayer(uriString = event.audioUri!!)
                 Spacer(modifier = Modifier.height(12.dp))
-            } else if (event.uploadStatus == UploadStatus.UPLOADED && !audioExists) {
+            } else if (event.audioUri != null && event.uploadStatus == UploadStatus.UPLOADED && !audioExists) {
                 DeletedMediaPlaceholder("Audio uploaded and deleted locally")
                 Spacer(modifier = Modifier.height(12.dp))
             }

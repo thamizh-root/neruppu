@@ -1,271 +1,249 @@
-# Production Readiness Checklist
+# F-Droid Packaging Process — Step-by-Step Guide
 
-## ⚠️ CRITICAL ISSUES (Must Fix Before Production)
+## Prerequisites
 
-### 1. Android Gradle Plugin Incompatibility
-- **File**: `gradle/libs.versions.toml:2`
-- **Issue**: AGP 8.2.2 doesn't natively support compileSdk 35
-- **Fix**: Suppressed via `android.suppressUnsupportedCompileSdk=35` in gradle.properties
-- **Impact**: Warning suppressed, monitor for issues
+- Fully open-source app with a libre license (GPL-3.0-or-later in Neruppu's case)
+- Artifacts built from source (no proprietary SDKs or pre-built `.aar`/`.so` libraries)
+- Git tags follow semantic versioning (e.g., `v1.0.0`, `v1.1.0`)
 
-### 2. Alpha Dependency in Production
-- **File**: `gradle/libs.versions.toml:22`
-- **Issue**: `androidx.security:security-crypto:1.1.0-alpha06` is alpha
-- **Status**: ⚠️ Acceptable - this alpha has been stable for a long time
-- **Impact**: Low risk, monitor for edge cases
+---
 
-### 3. Missing Signing Configuration
-- **File**: `app/build.gradle.kts`
-- **Issue**: No signingConfig for release build
-- **Fix**: Add signing configuration for Play Store deployment
-- **Impact**: Cannot generate signed release APK/AAB
+## Step 1: Understand the F-Droid Data Repository Structure
 
-## ⚠️ PERFORMANCE ISSUES
+**Prompt:**
+```
+Explain the standard directory layout of the fdroiddata repository for a new Android app submission. Cover: the top-level structure (config.py, metadata/), how metadata/<PackageName>.yml works as a build recipe, where localized description text and screenshots live (metadata/<PackageName>/<locale>/), and what a typical metadata tree looks like for a Kotlin/Gradle multi-module app. Also explain the difference between metafiles inside metadata/ and the legacy root-level fdroid.yml format.
+```
 
-### 4. Busy-Wait Loop in Microphone Monitoring ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/sensors/MicrophoneDriver.kt:65-102`
-- **Issue**: Continuous polling without proper sleep causes CPU overhead
-- **Impact**: Battery drain when monitoring is active
-- **Note**: Has 10ms delay on silence but still active polling
-- **Status**: ✅ FIXED — Adaptive delay implemented (200ms silence, 50ms active noise)
+F-Droid distributes apps from a single centralized repo: **`fdroiddata`**.
 
-### 5. Bitmap Memory Management in MotionAnalyzer ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/analyzer/MotionAnalyzer.kt:37-38, 56-59`
-- **Issue**: Bitmaps created once but references swapped; large bitmaps held in memory
-- **Impact**: Potential memory pressure; double buffering may still cause GC pressure
-- **Note**: cleanup() doesn't recycle bitmaps (intentional) but they accumulate
-- **Status**: ✅ FIXED — Heatmap preview feature removed; `_differenceMap` field no longer exists. `referenceBuffer` is now a ByteArray, not a Bitmap.
+```
+fdroiddata/
+├── config.py
+├── metadata/
+│   ├── org.havenapp.neruppu.yml          ← Build recipe (= "metafile")
+│   └── org.havenapp.neruppu/
+│       └── en-US/
+│           ├── title.txt
+│           ├── short_description.txt
+│           ├── full_description.txt
+│           ├── images/
+│           │   ├── phoneScreenshots/
+│           │   ├── sevenInchScreenshots/
+│           │   └── tenInchScreenshots/
+│           └── changelogs/
+│               └── 1.txt                 ← changelog for versionCode 1
+└── ...
+```
 
-### 6. Camera Resolution at 640x480 May Not Be Optimal ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/CameraManager.kt:117-124`
-- **Issue**: Fixed resolution may be higher than needed for motion detection
-- **Impact**: Increased CPU/load on ImageAnalysis analyzer
-- **Status**: ✅ FIXED — ImageAnalysis uses 320x240; Preview/ImageCapture keep 640x480 for quality.
+- `metadata/<PackageName>.yml` — the build recipe
+- `metadata/<PackageName>/<locale>/` — localized text & images
+- Each build gets its own verified git tag commit in `fdroiddata`
 
-## ⚠️ MEMORY LEAK RISKS
+---
 
-### 7. Camera Executor Thread Leak Risk ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/CameraManager.kt:35-36, 194-197`
-- **Issue**: Single-thread executor may not be properly shut down on all paths
-- **Impact**: Potential memory leak if unbind() called before release()
-- **Note**: shutdown() in release() but not in cleanup path
-- **Status**: ✅ FIXED — `cameraExecutor.shutdown()` now called in both `unbind()` and `release()`.
+## Step 2: Fork fdroiddata and Create the Metadata File
 
-### 8. StateFlow Holding Bitmap References ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/analyzer/MotionAnalyzer.kt:33-34`
-- **Issue**: `_differenceMap` holds Bitmap reference; could prevent GC
-- **Impact**: Memory retained longer than necessary
-- **Status**: ✅ FIXED — Field removed during heatmap preview feature removal; no Bitmap references in flow anymore.
+**Prompt:**
+```
+Walk me through forking and cloning the fdroiddata GitLab repository, setting upstream remotes (origin = my fork, upstream = fdroid/fdroiddata), and creating the initial metadata/ directory structure. Then create a complete, valid metadata/org.havenapp.neruppu.yml build recipe for a modern Gradle multi-module Kotlin Android app. The app has applicationId org.havenapp.neruppu, minSdk 26, targetSdk 35, compileSdk 35, uses AGP 8.2.2, Hilt, Room, and CameraX. It has no native .so libraries. The repo is https://github.com/thamizh-root/neruppu.git. The first release tag is v1.0.0. Include all required YAML keys (Categories, License, SourceCode, IssueTracker, Changelog, AutoName, Name, Summary, Description, RepoType, Repo, Builds, UpdateCheck, AutoUpdateMode). Set subdir to app because it's a multi-module Gradle project. Set gradle: yes and android_update_build_tools: true for AGP 8 + compileSdk 35. Remove ndk.
+```
 
-### 13. MediaPlayer Potential Leak in Audio Player ✅
-- **File**: `ui/src/main/java/org/havenapp/neruppu/ui/features/logs/LogsScreen.kt:312-387`
-- **Issue**: MediaPlayer created in prepareAsync() but may not be released if disposed before ready
-- **Impact**: Potential memory leak if user navigates away during async prepare
-- **Note**: DisposableEffect handles cleanup but MediaPlayer lifecycle edge cases exist
-- **Status**: ✅ FIXED — Added `isReleased` flag and guards in `setOnPreparedListener` to prevent race conditions on dispose.
+```bash
+# Clone your fork
+git clone https://gitlab.com/<your-username>/fdroiddata.git
+cd fdroiddata
+git remote add upstream https://gitlab.com/fdroid/fdroiddata.git
+```
 
-## ⚠️ BATTERY PERFORMANCE ISSUES
+Create `metadata/org.havenapp.neruppu.yml`:
 
-### 9. PARTIAL_WAKE_LOCK Held Continuously
-- **File**: `app/src/main/java/org/havenapp/neruppu/service/MonitoringService.kt:198-206, 262-267`
-- **Issue**: WakeLock acquired every 8 minutes for 10-minute timeout
-- **Impact**: Keeps CPU awake; could drain battery during extended monitoring
-- **Status**: ⚠️ Partial — `isReleased` flag added, but `startWakeLockRefresh()` still creates a new WakeLock object every cycle instead of re-acquiring the existing one.
+```yaml
+Categories:
+  - Internet
+  - Security
+License: GPL-3.0-or-later
+SourceCode: https://github.com/thamizh-root/neruppu
+IssueTracker: https://github.com/thamizh-root/neruppu/issues
+Changelog: https://github.com/thamizh-root/neruppu/releases
 
-### 10. Continuous Sensor Polling ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/sensors/MicrophoneDriver.kt`
-- **Issue**: Audio monitoring runs in tight loop (10ms sleep on silence)
-- **Impact**: Significant battery drain during monitoring
-- **Note**: Sample rate reduced to 16kHz (good optimization)
-- **Status**: ✅ FIXED — Adaptive delay implemented (200ms silence, 50ms active).
+AutoName: Neruppu
+Name: Neruppu
+Summary: Physical security monitoring app
+Description: |-
+  Offline-first security monitoring app that uses device sensors (camera, microphone,
+  accelerometer, light) to detect and record security events. Optional remote alerts
+  via Matrix.
 
-### 11. No Adaptive Frame Rate Based on Battery ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/camera/analyzer/MotionAnalyzer.kt:25, 44-47`
-- **Issue**: Fixed 5 FPS regardless of device battery state
-- **Impact**: No power saving when battery is low
-- **Status**: ✅ FIXED — `MotionAnalyzer` now adjusts `currentTargetFps` based on battery level (5 FPS ≥50%, 3 FPS ≥20%, 1 FPS <20%).
+RepoType: git
+Repo: https://github.com/thamizh-root/neruppu.git
 
-### 12. Accelerometer Uses SENSOR_DELAY_UI ✅
-- **File**: `data/src/main/java/org/havenapp/neruppu/data/sensors/AccelerometerDriver.kt:45-50`
-- **Issue**: Could use SENSOR_DELAY_NORMAL for better battery
-- **Impact**: Unnecessary power consumption for background monitoring
-- **Status**: ⚠️ Partial — `SENSOR_DELAY_UI` is still used with 500ms batching. Could downgrade to `SENSOR_DELAY_NORMAL` for even better battery.
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0          # Git tag or SHA
+    subdir: app              # Points to :app module in multi-module Gradle
+    gradle: yes
+    timeout: 600
+    android_update_build_tools: true  # Required for AGP 8 + compileSdk 35
+    # ndk: 25.1.8937393     # Only if native .so libs are present
+    # output: app/build/outputs/apk/release/app-release-unsigned.apk
 
-## ✅ GOOD PRACTICES FOLLOWED
+UpdateCheck: RepoManifest   # Reads versionCode from AndroidManifest.xml on default branch
+AutoUpdateMode: RepoManifest
+```
 
-### Performance Optimizations
-- ✅ Reduced audio sample rate to 16kHz (from 44.1kHz)
-- ✅ Frame skipping in MotionAnalyzer (5 FPS target)
-- ✅ Sensor batching enabled (500ms latency for accelerometer/light)
-- ✅ SignificantMotion sensor for ultra-low-power wakeups
-- ✅ Camera resolution limited to 640x480
-- ✅ Backpressure strategy KEEP_ONLY_LATEST
+### What each block does
 
-### Battery Optimizations
-- ✅ Sensor batching (maxReportLatencyUs) used
-- ✅ Single-thread executor for camera
-- ✅ Wake lock timeout (10 minutes)
-- ✅ Proper sensor unregistration in awaitClose
+| Field | Purpose |
+|-------|---------|
+| **Categories** | Must match F-Droid's approved category list (e.g., `Internet`, `Security`). |
+| **License** | SPDX identifier. F-Droid only accepts libre licenses. |
+| **SourceCode / IssueTracker / Changelog** | URLs displayed on the app page. `Changelog` can also be local `changelogs/<versionCode>.txt`. |
+| **AutoName** | Override the manifest `applicationLabel` if the APK contains promo text. Omit if the APK name is clean. |
+| **RepoType / Repo** | Where F-Droid fetches source. `git` is standard. |
+| **Builds** | Array of build recipes. F-Droid checks out the exact `commit`, sets `subdir` to your `:app` module, runs `./gradlew assembleRelease`, and maps `versionName`/`versionCode` to the produced APK. |
+| **subdir** | Critical for multi-module Gradle projects like Neruppu. Tells F-Droid to run Gradle from `app/`. |
+| **gradle: yes** | Runs `./gradlew`. |
+| **ndk** | Pulls a specific NDK version. Remove unless you have `jniLibs/` or native dependencies. |
+| **android_update_build_tools: true** | Forces F-Droid to install matching build-tools for your AGP version. |
+| **UpdateCheck** | How F-Droid discovers newer versions. `RepoManifest` parses `AndroidManifest.xml` on the default branch. `Tags` requires tags to match `v\d+\.\d+`. |
+| **AutoUpdateMode** | Must mirror `UpdateCheck`. |
 
-### Memory Management
-- ✅ Bitmaps checked for recycled state before use
-- ✅ Coroutine cancellation in onDestroy
-- ✅ AudioRecord released in finally block
-- ✅ Camera unbindAll() on cleanup
+---
 
-### Architecture
-- ✅ Foreground service with proper notification
-- ✅ WorkManager for deferred notifications
-- ✅ SharedPreferences listener unregistered on destroy
-- ✅ Sensor cooldown (3-second minimum between events)
+## Step 3: Add Localized Metadata (Optional but Recommended)
 
-## RECOMMENDATIONS FOR PRODUCTION
+**Prompt:**
+```
+Create the full localized metadata directory tree for Neruppu under metadata/org.havenapp.neruppu/en-US/. I need:
+1. title.txt — just "Neruppu"
+2. short_description.txt — one-line: "Offline-first security monitoring app"
+3. full_description.txt — multi-line description covering camera, microphone, accelerometer, light sensors, Matrix alerts, offline-first architecture, and GPL-3.0 license
+4. images/phoneScreenshots/ directory with a README note on screenshot specs (PNG/JPG, 320-1280px, 16:9 or 4:3)
+5. changelogs/ directory with a sample 1.txt for versionCode 1
 
-1. **AGP update recommended**:
-   - AGP 8.6.0+ officially supports compileSdk 35
+Also list the exact bash mkdir commands to create this tree and explain what F-Droid displays from each file on the app's client page.
+```
 
-2. **Verify ProGuard rules** are complete for all dependencies used
+```bash
+mkdir -p metadata/org.havenapp.neruppu/en-US/images/phoneScreenshots
+```
 
-3. **Test release build thoroughly** on target devices
+Create the text files:
 
-4. **Check for Google Play requirements**:
-   - Target SDK 35 is latest, comply with Play Store policies
-   - Ensure all permissions have appropriate justifications
+- `metadata/org.havenapp.neruppu/en-US/title.txt` → `Neruppu`
+- `metadata/org.havenapp.neruppu/en-US/short_description.txt` → one-line summary
+- `metadata/org.havenapp.neruppu/en-US/full_description.txt` → multi-line description
 
-## F-Droid Specific Requirements
+Screenshots: PNG/JPG, 320–1280px wide, 16:9 or 4:3 aspect ratio. Place in images subdirectories.
 
-Add these to the production checklist to become F-Droid eligible:
+---
 
-### F1. License File ✅
-- **Issue**: F-Droid requires an explicit license file at the repository root.
-- **Action**: Add `LICENSE` (GPL-3.0-only recommended for this project type).
-- **Impact**: Blocking for F-Droid inclusion.
-- **Status**: ✅ DONE — `LICENSE` file present at root (GPL-3.0).
+## Step 4: Test the Build Locally Using fdroidserver
 
-### F2. Non-Free Dependencies Policy
-- **Issue**: `androidx.security:security-crypto:1.1.0-alpha06` is alpha; F-Droid prefers stable releases.
-- **Action**: Upgrade to `1.1.0` stable when available.
-- **Status**: ⚠️ Acceptable for now, but verify on every dependency update.
+**Prompt:**
+```
+Provide the exact terminal commands to install fdroidserver, initialize a local fdroiddata test environment, and validate the Neruppu build recipe. Include:
+1. pip install command for fdroidserver
+2. Required environment variables (ANDROID_HOME, JAVA_HOME) with example paths
+3. fdroid init command and what it creates
+4. fdroid readmeta command to validate YAML syntax
+5. fdroid lint command to check policy compliance
+6. fdroid update command to fetch source and verify version mapping
+7. fdroid build --no-tarball org.havenapp.neruppu command to compile the APK
 
-### F3. Reproducible Builds
-- **Action**: Ensure `versionCode` and `versionName` are deterministic (not generated from VCS metadata at build time).
-- **Action**: Ensure `gradle-wrapper.properties` is committed.
-- **Check**: `org.gradle.configuration-cache=true` is already present ✅.
+Also list common Neruppu-specific failure modes and their fixes: AGP 8.2.2 + compileSdk 35 incompatibility with F-Droid's pinned AGP, missing android_update_build_tools flag, Kapt/Hilt annotation processor caching issues, and how to read the resulting APK path from tmp/.
+```
 
-### F4. F-Droid Metadata
-- **Action**: Create `metadata/org.havenapp.neruppu/` with:
-  - `title`, `summary`, `description`
-  - `icon.png` (512x512), `featureGraphic.png` (1024x500)
-  - `screenshots/phone/` and `screenshots/sevenInch/` folders
-  - `changelogs/100.txt`
+```bash
+# Install fdroidserver (Debian/Ubuntu: apt install fdroidserver)
+pip install --user fdroidserver
 
-### F5. Network Security
-- **Issue**: `LogLevel.ALL` in `NetworkModule.kt` logs HTTP tokens in release builds.
-- **Action**: Make logging conditional — `LogLevel.ALL` only for debug; `LogLevel.NONE` for release.
-- **Issue**: No `android:usesCleartextTraffic` restriction and no `networkSecurityConfig`.
-- **Action**: Add `android:usesCleartextTraffic="false"` to `<application>` tag and create `res/xml/network_security_config.xml`.
+# Set Android SDK and JDK 17 paths
+export ANDROID_HOME="$HOME/Android/Sdk"
+export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"   # Adjust for your OS
 
-### F6. FileProvider Restriction
-- **Issue**: `file_paths.xml` uses `path="."` which exposes the entire `filesDir`.
-- **Action**: Remove `path="."` and keep only `path="captures/"` and `path="audio_captures/"`.
+# Initialize minimal repo structure
+fdroid init
 
-### F7. ProGuard Rules for Release Logging
-- **Issue**: Ktor logging plugin should be stripped/completely disabled in release.
-- **Action**: Add ProGuard rules to ensure the `Logging` plugin setup in `NetworkModule` does not execute in release builds.
+# Validate YAML syntax
+fdroid readmeta metadata/org.havenapp.neruppu.yml
 
-### F8. Gradle AGP Compatibility
-- **Issue**: AGP 8.2.2 + compileSdk 35 requires `android.suppressUnsupportedCompileSdk=35`.
-- **Action**: Upgrade to AGP 8.6.0+ to remove the suppression flag. F-Droid buildbots may use a different Gradle version.
-- **Impact**: Build failure risk on F-Droid server.
+# Lint metadata (policy checks)
+fdroid lint metadata/org.havenapp.neruppu.yml
 
-### F9. Audio File Cleanup
-- **Issue**: `AudioRecorder.kt` writes `.mp4` clips to `filesDir/audio_captures/` with no post-upload cleanup.
-- **Action**: Delete audio files after successful Telegram/Matrix upload.
-- **Impact**: Storage exhaustion on long-running deployments.
+# Fetch source and verify version mapping
+fdroid update
 
-### F10. Signing Configuration
-- **Issue**: No `signingConfig` defined in release build.
-- **Action**: Add signing config placeholder (F-Droid will sign with its own key, but local testing needs a keystore).
-- **File**: `app/build.gradle.kts`.
+# Build the APK locally (skips source tarball creation)
+fdroid build --no-tarball org.havenapp.neruppu
+```
 
-### F11. Post-Upload Media Cleanup Policy
-- **Issue**: No automatic or manual deletion of captured photos/audio after upload to Telegram or Matrix.
-- **Requirement**: Before launch, implement a media lifecycle policy:
-  - **Auto-delete after successful upload** — when a media file is successfully pushed to Telegram or Matrix, the local copy in `filesDir/captures/` and `filesDir/audio_captures/` must be deleted.
-  - **Mutual exclusion of upload targets** — users must be restricted to selecting at most one remote target (Telegram OR Matrix, not both). Simultaneous dual-target upload adds unnecessary complexity and increases the risk of partial-failure states leaving orphaned files.
-  - Delete photos/media after uploading, but keep event logs and show upload status such as `Uploaded to Telegram` or `Uploaded to Matrix`.
-  - Both logs and media can be deleted from the Logs screen delete button with password confirmation.
-  - Delete password must be set from the Settings screen. Users must be able to add, reset, and remove it.
-  - Security concern: if someone has app access, they may open Settings and reset/delete the password. A normal app-level password is not enough for high-risk protection.
-  - Network failure handling: pending media must remain stored locally and retry automatically until upload succeeds.
-- **Implementation steps**:
-  1. Add `AlertTarget` enum with `NONE`, `TELEGRAM`, and `MATRIX`.
-  2. Store the active target in encrypted settings.
-  3. Enforce mutual exclusion when saving Telegram or Matrix config:
-     - Saving Telegram sets target to `TELEGRAM` and clears Matrix config.
-     - Saving Matrix sets target to `MATRIX` and clears Telegram config.
-     - Upload worker reads only the active target.
-  4. Extend the `Event` domain/data model and Room entity with upload metadata:
-     - `uploadStatus`: `PENDING`, `UPLOADED`, or `FAILED`.
-     - `uploadTarget`: Telegram or Matrix.
-     - `uploadedAt`: upload success timestamp.
-     - `failureReason`: optional retry/debug text.
-  5. Save media paths in Room, but do not delete them until upload success is confirmed.
-  6. Create a `MediaUploadRepository` or extend `HandleSensorEventUseCase` so sensor events enqueue media uploads after capture.
-  7. Create a `MediaUploadWorker` using WorkManager with `NetworkType.CONNECTED` constraints.
-  8. Worker flow:
-     - fetch pending events with media paths.
-     - read active upload target.
-     - upload the media through Telegram or Matrix.
-     - on success, update event status to `UPLOADED`, set target and timestamp, then delete the local media file.
-     - on failure, update event status to `FAILED` or leave it pending, keep the media file, and retry later.
-  9. Use WorkManager exponential backoff for network failures.
-  10. Add upload status badges to `LogsScreen`:
-      - `Pending upload`
-      - `Uploaded to Telegram`
-      - `Uploaded to Matrix`
-      - `Upload failed`
-  11. If media was uploaded and deleted locally, show a placeholder such as `Uploaded and deleted locally` instead of previewing the file.
-  12. Add delete-password storage using salted PBKDF2 hash values, never plain text.
-  13. Add Settings UI for:
-      - set delete password
-      - change delete password
-      - remove delete password
-  14. Require old password or biometric confirmation before changing/removing the delete password.
-  15. Require password confirmation before deleting logs/media from the Logs screen.
-  16. Consider requiring the same password/biometric before opening sensitive Settings pages, because someone with unlocked app access could otherwise reset the delete password.
-  17. Optional stronger protection: add biometric confirmation for destructive actions and a decoy/empty mode when the wrong delete password is entered.
-  18. Optional cleanup policy: add age/size-based eviction for failed uploads, but never delete pending media before successful upload unless the user explicitly deletes the event log.
+### Expected outputs
 
+- Success → APK at `tmp/org.havenapp.neruppu_1.apk` (or `unsigned` variant)
+- Failure → Gradle log printed by `fdroidserver` for debugging
 
-### F12. Upload Status Indicator in Logs
-- **Issue**: `Event` model and `LogsScreen` do not expose whether a photo/audio was successfully uploaded to Telegram or Matrix.
-- **Requirement**: Each event in the logs must display an upload status Badge/indicator:
-  - States: `Pending upload`, `Uploaded (Telegram)`, `Uploaded (Matrix)`, `Upload failed`.
-  - The `Event` domain model needs an additional field (e.g., `uploadTarget: String?`, `uploadedAt: Instant?`) to persist this.
-  - This indicator must update when the transport call returns success/failure from `HandleSensorEventUseCase`.
+### Neruppu-specific considerations
 
-### F13. Unified Integration Config Popup
-- **Issue**: Telegram and Matrix configuration UIs (`TelegramSettingsSection.kt`, `MatrixSettingsSection.kt`) are full embedded rows in `SettingsScreen.kt`. The user wants them moved into a **reusable popup/dialog** so any future integration can use the same pattern.
-- **Requirement**: Refactor both config sections into a single `IntegrationConfigPopup` composable that accepts an integration type/config object. This keeps `SettingsScreen` clean and makes adding new providers (e.g., Signal, email, custom webhook) straightforward without touching settings screen structure.
+- **AGP 8.2.2 + compileSdk 35**: If F-Droid's pinned AGP is older than 8.3–8.4+, the build may error. If you hit this, temporarily pin `compileSdk` to 34 in the metafile using `ext` override, or wait for F-Droid to update its AGP stack.
+- **Kapt / Hilt**: Annotation processors run fine in F-Droid's clean environment once dependencies are cached.
+- **Remove `ndk` line** unless you have native `.so` libraries — it slows builds unnecessarily.
 
-## Recommended Next Step Order
+---
 
-1. **Phase 1 — Security & Compliance (Day 1)**:
-   - F5 (conditional LogLevel + ProGuard)
-   - F6 (FileProvider paths)
-   - F7 (cleartext traffic + network security config)
-   - F1 (LICENSE file)
+## Step 5: Commit, Push, and Open the Merge Request
 
-2. **Phase 2 — Build Hygiene (Day 1-2)**:
-   - F3 (reproducible builds)
-   - F8 (AGP upgrade path)
-   - F10 (signing config for local testing)
+**Prompt:**
+```
+Provide the exact git commands to commit the F-Droid metadata (and optional localized assets/screenshots) to my fdroiddata fork, push to my GitLab namespace, and open a Merge Request against fdroid:master. Include:
+1. git status / git diff review before staging
+2. git add commands for metadata/org.havenapp.neruppu.yml and metadata/org.havenapp.neruppu/
+3. git commit with a proper F-Droid-style message ("Add <AppName> - <short description>")
+4. git push to origin main
+5. The GitLab UI steps or glab CLI command to open the MR targeting fdroid:master
 
-3. **Phase 3 — Storage & Cleanup (Day 2)**:
-   - F9 (audio file deletion after upload)
+Also explain what happens after the MR is opened: CI lint + build pipeline, manual source audit by F-Droid reviewers, what a "verified git tag" means in fdroiddata, and how the app gets merged into the main repository.
+```
 
-4. **Phase 4 — F-Droid Submission (Day 3-5)**:
-   - F4 (metadata directory)
-   - Test build via `fdroid build -v --server org.havenapp.neruppu`
-   - Submit merge request to `fdroiddata` repository
+```bash
+git add metadata/org.havenapp.neruppu.yml
+git add metadata/org.havenapp.neruppu/  # if you added screenshots/changelogs
+git commit -m "Add Neruppu - Offline-first security monitoring app"
+git push origin main
+```
+
+Then open a **Merge Request** against `fdroid:master` on GitLab.
+
+### What happens after you open the MR
+
+1. F-Droid CI runs `fdroid lint` and a full server build
+2. A reviewer performs a manual source audit (license checks, dependency review, etc.)
+3. If approved, a verified git tag is added to `fdroiddata` pointing to your metafile snapshot
+4. The app is merged into the main F-Droid repository and appears in the client
+
+---
+
+## Step 6: Maintain and Update
+
+**Prompt:**
+```
+List the exact steps to push an update for an already-published F-Droid app, using Neruppu as the example. Cover:
+1. How to release a new version in the upstream repo (git tag v1.1.0, bump versionCode in app/build.gradle.kts)
+2. Whether the fdroiddata metafile needs manual editing if AutoUpdateMode is set to RepoManifest vs Tags
+3. How to verify the new version is detected (fdroid update, fdroid build)
+4. How to submit the update commit to fdroiddata (direct push vs MR via fdroiddata-helper bot)
+5. How the F-Droid client receives the update from the signed repository
+
+Also explain the difference between AutoUpdateMode: RepoManifest (reads AndroidManifest.xml on default branch) and AutoUpdateMode: Tags (uses semantic version tags).
+```
+
+When you release a new version of Neruppu:
+
+1. Tag the release in your upstream repo: `git tag v1.1.0 && git push --tags`
+2. Bump `versionCode` in `app/build.gradle.kts`
+3. Update the `Builds` entry in `metadata/org.havenapp.neruppu.yml` (or rely on `AutoUpdateMode`)
+4. Push a commit to `fdroiddata` or merge an fdroiddata-helper MR
+
+> **Tip:** Rename your git tags from date-stamps (e.g., `v2026.06.30.044049`) to semantic versions (`v1.0.0`, `v1.1.0`) so `UpdateCheck: Tags` works automatically.

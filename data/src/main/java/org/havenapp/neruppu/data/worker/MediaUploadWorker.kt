@@ -2,6 +2,7 @@ package org.havenapp.neruppu.data.worker
 
 import android.content.Context
 import android.util.Log
+import org.havenapp.neruppu.data.BuildConfig
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
@@ -41,7 +42,9 @@ class MediaUploadWorker(
                 Result.retry()
             }
         } catch (e: Exception) {
-            Log.w("MediaUploadWorker", "Upload worker failed; retrying", e)
+            if (BuildConfig.DEBUG) {
+                Log.w("MediaUploadWorker", "Upload worker failed; retrying", e)
+            }
             Result.retry()
         }
     }

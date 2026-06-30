@@ -21,10 +21,5 @@ class AttachAudioToEventUseCase @Inject constructor(
 
         sensorRepository.updateEventAudio(eventId, savedAudio.absolutePath)
         println("Neruppu: Database updated with audio URI for event $eventId")
-
-        if (tempAudioFile.exists()) {
-            val deleted = tempAudioFile.delete()
-            println("Neruppu: Temporary audio file deleted: $deleted")
-        }
     }
 }

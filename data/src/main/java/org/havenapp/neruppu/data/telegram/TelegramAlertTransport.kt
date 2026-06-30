@@ -3,6 +3,7 @@ package org.havenapp.neruppu.data.telegram
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import org.havenapp.neruppu.data.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.havenapp.neruppu.domain.model.AlertPayload
@@ -15,7 +16,7 @@ import javax.inject.Singleton
 @Singleton
 class TelegramAlertTransport @Inject constructor(
     private val apiClient: TelegramApiClient,
-    private val configStore: TelegramConfigStore
+    private val configStore: TelegramConfigStore,
 ) : AlertTransport {
 
     override val isConfigured: Boolean get() = configStore.isComplete
@@ -23,12 +24,16 @@ class TelegramAlertTransport @Inject constructor(
     override suspend fun send(payload: AlertPayload): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             if (!isConfigured) {
-                Log.d("TelegramAlertTransport", "Transport not configured, skipping alert")
+                if (BuildConfig.DEBUG) {
+                    Log.d("TelegramAlertTransport", "Transport not configured, skipping alert")
+                }
                 return@runCatching Unit
             }
-            Log.d("TelegramAlertTransport", "Sending alert: $payload")
+            if (BuildConfig.DEBUG) {
+                Log.d("TelegramAlertTransport", "Sending alert: $payload")
+            }
             val textMsg = "<b>[🔥 Neruppu]</b> ${payload.sensorType.name}: ${payload.message}"
-            
+
             when (payload) {
                 is AlertPayload.TextAlert -> {
                     apiClient.sendMessage(textMsg).getOrThrow()
@@ -39,7 +44,6 @@ class TelegramAlertTransport @Inject constructor(
                     val bytes: ByteArray = File(file.absolutePath).readBytes()
 
                     if (file.mimeType == "image/jpeg") {
-                        // Compress image for Telegram if needed (max 5MB but let's keep it lean like Matrix)
                         val uploadBytes = if (bytes.size > 800_000) {
                             compressJpeg(bytes, targetKb = 800)
                         } else bytes
@@ -51,7 +55,9 @@ class TelegramAlertTransport @Inject constructor(
             }
             Unit
         }.onFailure {
-            Log.e("TelegramAlertTransport", "Failed to send Telegram alert", it)
+            if (BuildConfig.DEBUG) {
+                Log.e("TelegramAlertTransport", "Failed to send Telegram alert", it)
+            }
         }
     }
 
@@ -65,9 +71,9 @@ class TelegramAlertTransport @Inject constructor(
                 Bitmap.createScaledBitmap(bitmap, 1280,
                     (1280f * bitmap.height / bitmap.width).toInt(), true)
             } else null
-            
+
             val targetBitmap = scaled ?: bitmap
-            
+
             ByteArrayOutputStream().also { out ->
                 var quality = 85
                 do {
