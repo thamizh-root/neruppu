@@ -5,25 +5,21 @@ SourceCode: https://github.com/thamizh-root/neruppu
 IssueTracker: https://github.com/thamizh-root/neruppu/issues
 Changelog: https://github.com/thamizh-root/neruppu/releases
 
-AutoName: Neruppu
 Name: Neruppu
-Summary: Physical security monitoring app
-Description: |-
-  Offline-first security monitoring app that uses device sensors (camera, microphone,
-  accelerometer, light) to detect and record security events. Optional remote alerts
-  via Matrix.
+AutoName: Neruppu
 
 RepoType: git
 Repo: https://github.com/thamizh-root/neruppu.git
 
 Builds:
-  - versionName: '2026.06.30'
+  - versionName: 2026.06.30
     versionCode: 9
-    commit: v2026.06.30.044049
+    commit: f286d6ede84fe1792d563473b355b2c20519d94f
     subdir: app
-    gradle: yes
-    timeout: 600
-    android_update_build_tools: true
+    gradle:
+      - yes
 
-UpdateCheck: RepoManifest
-AutoUpdateMode: RepoManifest
+AutoUpdateMode: None
+UpdateCheckMode: RepoManifest
+CurrentVersion: 2026.06.30
+CurrentVersionCode: 9
