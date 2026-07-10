@@ -14,12 +14,12 @@ Repo: https://github.com/thamizh-root/neruppu.git
 Builds:
   - versionName: 2026.06.30
     versionCode: 9
-    commit: f286d6ede84fe1792d563473b355b2c20519d94f
+    commit: 80c81a896447b90f6d6f2eff53573f5be4fc8baf
     subdir: app
     gradle:
       - yes
 
-AutoUpdateMode: None
-UpdateCheckMode: RepoManifest
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
 CurrentVersion: 2026.06.30
 CurrentVersionCode: 9
