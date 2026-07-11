@@ -1,4 +1,21 @@
-package org.havenapp.neruppu
+/*
+ * Copyright (C) 2026 thamizh-root
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+ package org.havenapp.neruppu
 
 import android.Manifest
 import android.content.*
@@ -121,11 +138,11 @@ class MainActivity : ComponentActivity() {
             NeruppuTheme {
                 var selectedTab by remember { mutableIntStateOf(0) }
                 val logsViewModel: LogsViewModel = hiltViewModel()
-                
+
                 // Settings state (synced with SharedPreferences)
                 val context = LocalContext.current
                 val prefs = context.getSharedPreferences("neruppu_prefs", MODE_PRIVATE)
-                
+
                 var motionEnabled by remember { mutableStateOf(prefs.getBoolean("motion_enabled", true)) }
                 var soundEnabled by remember { mutableStateOf(prefs.getBoolean("sound_enabled", true)) }
                 var lightEnabled by remember { mutableStateOf(prefs.getBoolean("light_enabled", false)) }
@@ -203,7 +220,7 @@ class MainActivity : ComponentActivity() {
                                         audioLevel = audioLevel,
                                         lightLevel = lightLevel,
                                         accelerometerStable = true,
-                                        onToggleMonitoring = { 
+                                        onToggleMonitoring = {
                                             if (!isMonitoring) {
                                                 val hasCamera = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
                                                 val hasAudio = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -214,13 +231,13 @@ class MainActivity : ComponentActivity() {
                                                 val intent = Intent(context, MonitoringService::class.java)
                                                 context.startForegroundService(intent)
                                             }
-                                            service.toggleMonitoring() 
+                                            service.toggleMonitoring()
                                         },
                                         useFrontCamera = useFrontCamera,
                                         sessionStartTime = sessionStartTime,
                                         lastGuardedTime = lastGuardedTime
                                     )
-                                    
+
                                     val lifecycleOwner = LocalLifecycleOwner.current
                                     DisposableEffect(lifecycleOwner) {
                                         service.setUiActive(true)
