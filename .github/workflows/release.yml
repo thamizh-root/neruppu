@@ -51,6 +51,6 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: ${{ steps.tag.outputs.tag_name }}
-          files: app/build/outputs/apk/release/neruppu-release.apk
+          files: ${{ steps.sign_app.outputs.signedReleaseFile }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
