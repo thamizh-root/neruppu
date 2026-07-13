@@ -39,12 +39,13 @@ jobs:
           alias: ${{ secrets.ALIAS }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
+          nameFilesTo: neruppu-release.apk
         env:
           BUILD_TOOLS_VERSION: "34.0.0"
 
       - name: Generate Release Tag
         id: tag
-        run: echo "tag_name=v$(date +'%Y.%m.%d.%H%M%S')" >> $GITHUB_OUTPUT
+        run: echo "tag_name=v$(date +'%y.%V')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
