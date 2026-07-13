@@ -41,13 +41,13 @@ jobs:
         env:
           BUILD_TOOLS_VERSION: "34.0.0"
 
-      - name: Rename APK for Release
-        run: |
-          mv ${{ steps.sign_app.outputs.signedReleaseFile }} app/build/outputs/apk/release/neruppu-release-${{ steps.tag.outputs.tag_name }}.apk
-
       - name: Generate Release Tag
         id: tag
         run: echo "tag_name=v$(date +'%y.%V')" >> $GITHUB_OUTPUT
+
+      - name: Rename APK for Release
+        run: |
+          mv ${{ steps.sign_app.outputs.signedReleaseFile }} app/build/outputs/apk/release/neruppu-release-${{ steps.tag.outputs.tag_name }}.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
