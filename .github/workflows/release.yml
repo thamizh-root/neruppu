@@ -38,9 +38,12 @@ jobs:
           alias: ${{ secrets.ALIAS }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
-          nameFilesTo: neruppu-release.apk
         env:
           BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Rename APK for Release
+        run: |
+          mv ${{ steps.sign_app.outputs.signedReleaseFile }} app/build/outputs/apk/release/neruppu-release.apk
 
       - name: Generate Release Tag
         id: tag
@@ -51,6 +54,6 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: ${{ steps.tag.outputs.tag_name }}
-          files: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          files: app/build/outputs/apk/release/neruppu-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
