@@ -1,6 +1,7 @@
 Categories:
   - Security
 License: GPL-3.0-or-later
+AuthorName: Thamizharasan Munusamy
 SourceCode: https://github.com/thamizh-root/neruppu
 IssueTracker: https://github.com/thamizh-root/neruppu/issues
 Changelog: https://github.com/thamizh-root/neruppu/releases
@@ -11,15 +12,19 @@ AutoName: Neruppu
 RepoType: git
 Repo: https://github.com/thamizh-root/neruppu.git
 
+Binaries: https://github.com/thamizh-root/neruppu/releases/download/v%v/app-release-unsigned-signed.apk
+
 Builds:
-  - versionName: 2026.06.30
+  - versionName: 2026.07.11.082717
     versionCode: 9
-    commit: 80c81a896447b90f6d6f2eff53573f5be4fc8baf
+    commit: c62055e66ed4488ccf825b62124e20421d72a3b4
     subdir: app
     gradle:
       - yes
 
+AllowedAPKSigningKeys: ca5b74c2c93c8d952633e5c8e657142a16eb2b773d5ac751e4675e50a126edcc
+
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 2026.06.30
+CurrentVersion: 2026.07.11.082717
 CurrentVersionCode: 9
